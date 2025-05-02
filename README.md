@@ -40,6 +40,47 @@ clients/
         └── projects.json
 ```
 
+## Local Development
+Once you pull an experiment, you can run certain variation locally to test properly. For smooth development with hot-reload support, we are gonna use [TamperMonkey](https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) chrome extension. First install the chrome extension, enable it on click only from extension settings.
+Then add an script as following:
+```
+// ==UserScript==
+// @name         Opti-CLI
+// @namespace    http://tampermonkey.net/
+// @version      2025-05-02
+// @description  try to take over the world!
+// @author       You
+// @match        *://*/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=google.com
+// @grant        none
+// @noframes
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    // Inject custom CSS
+    const customCSS = document.createElement('link');
+    customCSS.rel = 'stylesheet';
+    customCSS.href = 'http://localhost:3000/custom.css';
+    document.head.appendChild(customCSS);
+
+    // Inject custom JS
+    const customJs = document.createElement('script');
+    customJs.src = 'http://localhost:3000/custom.js';
+    customJs.type = 'text/javascript';
+    document.body.appendChild(customJs);
+
+    // Inject hot-reload JS (optional)
+    const hotReload = document.createElement('script');
+    hotReload.src = 'http://localhost:3000/hot-reload.js';
+    hotReload.type = 'text/javascript';
+    document.body.appendChild(hotReload);
+})();
+```
+This script will match all URL. So activating it on-click only will prevent the browser unnecessary reloads.
+Now, run `npx optly dev`, navigate to the TAB you want to test the changes, enable Tampermonkey on that TAB, reload, enjoy!
+
 ## Pushing a change
 Once you are done making changes to `custom.js` and `custom.css`, you can push the changes by running `npx optly push`. This will only update the changes in the platform, won't publish them. To publish the changes directly from CLI, you can run `npx optly push publish`.
 
