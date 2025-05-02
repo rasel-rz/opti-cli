@@ -46,12 +46,11 @@ Then add an script as following:
 ```
 // ==UserScript==
 // @name         Opti-CLI
-// @namespace    http://tampermonkey.net/
+// @namespace    https://rasel-rz.github.io/
 // @version      2025-05-02
-// @description  try to take over the world!
-// @author       You
+// @description  Running Optimizely Web Experiments locally for testing.
+// @author       Raihan
 // @match        *://*/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=google.com
 // @grant        none
 // @noframes
 // ==/UserScript==
