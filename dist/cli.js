@@ -58,7 +58,11 @@ const SYS_FILE = {
     JS: "custom.js",
     CSS: "custom.css",
     variationPath: ".variation-dir",
+    metrics: "metrics.json",
 };
+;
+;
+;
 const program = new commander_1.Command();
 program.name('opti-cli').version('0.1.0');
 program
@@ -156,6 +160,9 @@ program
         });
         localExperiments.push(experimentEntry);
         fs_1.default.writeFileSync(path_1.default.join(projectPath, SYS_FILE.experiments), JSON.stringify(localExperiments, null, 2));
+        const metricPath = path_1.default.join(experimentPath, SYS_FILE.metrics);
+        if (!fs_1.default.existsSync(metricPath))
+            fs_1.default.writeFileSync(metricPath, JSON.stringify([], null, 2));
         console.log(`${res.data.name} pulled!`);
     });
 });
@@ -246,6 +253,60 @@ program
     server.listen(PORT, () => {
         console.log(`Development server running at http://localhost:${PORT}`);
         console.log(`Hot-reload enabled. Watching for changes in ${SYS_FILE.JS} and ${SYS_FILE.CSS}`);
+    });
+});
+program
+    .command("metric")
+    .description("Try and sync metrics from a list of selector and metric name")
+    .action(() => {
+    const { client, project } = (0, context_1.getContext)();
+    if (!client)
+        return console.log("Missing context. Try npx optly use <variation link>");
+    const clientPath = path_1.default.join(SYS_FILE.root, client);
+    const tokenPath = path_1.default.join(clientPath, SYS_FILE.PAT);
+    if (!fs_1.default.existsSync(tokenPath))
+        return console.log("Client directory/PAT not found!");
+    const token = fs_1.default.readFileSync(tokenPath, 'utf-8');
+    const api = (0, api_1.getApiClient)(token);
+    function getEvent(eventId) { return api.get(`/events/${eventId}`); }
+    function makeEvent(pageId, event) {
+        return api.post(`/pages/${pageId}/events`, event);
+    }
+    if (!fs_1.default.existsSync(SYS_FILE.variationPath))
+        return console.log("Try pulling a variation first");
+    const devRoot = fs_1.default.readFileSync(SYS_FILE.variationPath, 'utf-8');
+    const experimentPath = path_1.default.join(devRoot, '..');
+    const metricsPath = path_1.default.join(experimentPath, SYS_FILE.metrics);
+    if (!fs_1.default.existsSync(metricsPath))
+        return console.log(`Try defining a metrics.json in experiment dir.`);
+    const metrics = JSON.parse(fs_1.default.readFileSync(metricsPath, 'utf-8'));
+    if (!metrics.length)
+        return console.log("No metrics found to be added!");
+    const xpJson = JSON.parse(fs_1.default.readFileSync(path_1.default.join(experimentPath, SYS_FILE.experiment), 'utf-8'));
+    const alreadyAddedMetrics = xpJson.metrics.map((x) => x.event_id).map(getEvent);
+    Promise.all([...alreadyAddedMetrics]).then((res) => {
+        const resMetrics = res.map((x) => x.data);
+        const metricsToAdd = metrics.filter(x => !resMetrics
+            .find((m) => m.config.selector === x.selector && m.name === x.name));
+        if (!metricsToAdd.length)
+            return console.log("All the metrics are added already");
+        Promise.allSettled([...metricsToAdd.map(e => makeEvent(xpJson.page_ids[0], {
+                name: e.name, config: { selector: e.selector }, event_type: 'click'
+            }))]).then(res => {
+            const resEvents = res.map((x) => {
+                if (x.status === 'fulfilled')
+                    return x.value.data;
+                return { id: (x.reason.toString().match(/(\d+)/) || [null, null])[1] };
+            });
+            const metricsToPushOnXp = resEvents.map((e) => {
+                if (!e || !e.id)
+                    return null;
+                return { event_id: Number(e.id), winning_direction: 'increasing', aggregator: 'unique', scope: 'visitor' };
+            }).filter(x => x);
+            xpJson.metrics.push(...metricsToPushOnXp);
+            fs_1.default.writeFileSync(path_1.default.join(experimentPath, SYS_FILE.experiment), JSON.stringify(xpJson, null, 2));
+            console.log(`${metricsToPushOnXp.length} metric(s) added. Run npx optly push to push the changes.`);
+        });
     });
 });
 program.parse();

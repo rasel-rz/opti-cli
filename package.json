@@ -1,6 +1,6 @@
 {
   "name": "opti-cli",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "CLI for Optimizely Web Experimentation",
   "main": "src/cli.ts",
   "scripts": {
@@ -8,6 +8,7 @@
     "pull": "ts-node src/cli.ts pull",
     "push": "ts-node src/cli.ts push",
     "init": "ts-node src/cli.ts init",
+    "metric": "ts-node src/cli.ts metric",
     "dev": "ts-node src/cli.ts dev",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
