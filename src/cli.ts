@@ -113,6 +113,8 @@ program
                 let customJS = "", customCSS = "";
                 try {
                     customJS = variation.actions[0].changes.find((x: any) => x.type === 'custom_code').value;
+                } catch (e) { }
+                try {
                     customCSS = variation.actions[0].changes.find((x: any) => x.type === 'custom_css').value;
                 } catch (e) { }
                 fs.writeFileSync(path.join(variationPath, SYS_FILE.JS), customJS);
