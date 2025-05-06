@@ -205,12 +205,56 @@ program
     const customCSS = fs_1.default.readFileSync(path_1.default.join(variationPath, SYS_FILE.CSS), 'utf-8');
     const experimentBody = JSON.parse(fs_1.default.readFileSync(path_1.default.join(experimentPath, SYS_FILE.experiment), 'utf-8'));
     const variationBody = experimentBody.variations.find((v) => v.variation_id === variation);
-    variationBody.actions[0].changes.forEach((change) => {
-        if (change.type === 'custom_code')
-            change.value = customJS;
-        if (change.type === 'custom_css')
-            change.value = customCSS;
-    });
+    if (customJS) {
+        try {
+            variationBody.actions[0].changes.find((change) => {
+                return change.type === 'custom_code';
+            }).value = customJS;
+            ;
+        }
+        catch (e) {
+            const change = { "async": false, "dependencies": [], "type": "custom_code", "value": customJS };
+            if (variationBody.actions && variationBody.actions.length) {
+                if (!variationBody.actions[0].changes)
+                    variationBody.actions[0].changes = [];
+                variationBody.actions[0].changes.push(change);
+            }
+            else {
+                if (!variationBody.actions)
+                    variationBody.actions = [];
+                variationBody.actions.push({
+                    changes: [change],
+                    page_id: experimentBody.page_ids[0]
+                });
+            }
+        }
+    }
+    if (customCSS) {
+        try {
+            variationBody.actions[0].changes.find((change) => {
+                return change.type === 'custom_css';
+            }).value = customCSS;
+        }
+        catch (e) {
+            const change = {
+                "async": false, "dependencies": [], "selector": "head",
+                "type": "custom_css", "value": customCSS
+            };
+            if (variationBody.actions && variationBody.actions.length) {
+                if (!variationBody.actions[0].changes)
+                    variationBody.actions[0].changes = [];
+                variationBody.actions[0].changes.push(change);
+            }
+            else {
+                if (!variationBody.actions)
+                    variationBody.actions = [];
+                variationBody.actions.push({
+                    changes: [change],
+                    page_id: experimentBody.page_ids[0]
+                });
+            }
+        }
+    }
     let apiUrl = `/experiments/${experiment}`;
     if (action === 'publish')
         apiUrl += `?action=publish`;
