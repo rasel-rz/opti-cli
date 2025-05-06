@@ -152,8 +152,12 @@ program
             if (!fs_1.default.existsSync(variationPath))
                 fs_1.default.mkdirSync(variationPath);
             fs_1.default.writeFileSync(SYS_FILE.variationPath, variationPath);
-            const customJS = (variation.actions[0].changes.find((x) => x.type === 'custom_code') || { value: '' }).value;
-            const customCSS = (variation.actions[0].changes.find((x) => x.type === 'custom_css') || { value: '' }).value;
+            let customJS = "", customCSS = "";
+            try {
+                customJS = variation.actions[0].changes.find((x) => x.type === 'custom_code').value;
+                customCSS = variation.actions[0].changes.find((x) => x.type === 'custom_css').value;
+            }
+            catch (e) { }
             fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.JS), customJS);
             fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.CSS), customCSS);
             experimentEntry.variations.push({ name: variation.name, dirName: variationDir, id: variation.variation_id });

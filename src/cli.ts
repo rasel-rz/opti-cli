@@ -110,8 +110,11 @@ program
                 const variationPath = path.join(experimentPath, variationDir);
                 if (!fs.existsSync(variationPath)) fs.mkdirSync(variationPath);
                 fs.writeFileSync(SYS_FILE.variationPath, variationPath);
-                const customJS = (variation.actions[0].changes.find((x: any) => x.type === 'custom_code') || { value: '' }).value;
-                const customCSS = (variation.actions[0].changes.find((x: any) => x.type === 'custom_css') || { value: '' }).value;
+                let customJS = "", customCSS = "";
+                try {
+                    customJS = variation.actions[0].changes.find((x: any) => x.type === 'custom_code').value;
+                    customCSS = variation.actions[0].changes.find((x: any) => x.type === 'custom_css').value;
+                } catch (e) { }
                 fs.writeFileSync(path.join(variationPath, SYS_FILE.JS), customJS);
                 fs.writeFileSync(path.join(variationPath, SYS_FILE.CSS), customCSS);
                 experimentEntry.variations.push({ name: variation.name, dirName: variationDir, id: variation.variation_id });
