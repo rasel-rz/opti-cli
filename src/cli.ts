@@ -159,6 +159,7 @@ program
 
         const experimentBody = JSON.parse(fs.readFileSync(path.join(experimentPath, SYS_FILE.experiment), 'utf-8'));
         const variationBody = experimentBody.variations.find((v: any) => v.variation_id === variation);
+        const targetPageId = experimentBody.page_ids && experimentBody.page_ids[0] || experimentBody.url_targeting.page_id;
         if (customJS) {
             try {
                 variationBody.actions[0].changes.find((change: any) => {
@@ -173,7 +174,7 @@ program
                     if (!variationBody.actions) variationBody.actions = [];
                     variationBody.actions.push({
                         changes: [change],
-                        page_id: experimentBody.page_ids[0]
+                        page_id: targetPageId
                     });
                 }
             }
@@ -195,7 +196,7 @@ program
                     if (!variationBody.actions) variationBody.actions = [];
                     variationBody.actions.push({
                         changes: [change],
-                        page_id: experimentBody.page_ids[0]
+                        page_id: targetPageId
                     });
                 }
             }
@@ -282,7 +283,8 @@ program
             const metricsToAdd = metrics.filter(x => !resMetrics
                 .find((m) => m.config.selector === x.selector && m.name === x.name));
             if (!metricsToAdd.length) return console.log("All the metrics are added already");
-            Promise.allSettled([...metricsToAdd.map(e => makeEvent(xpJson.page_ids[0], {
+            const targetPageId = xpJson.page_ids && xpJson.page_ids[0] || xpJson.url_targeting.page_id;
+            Promise.allSettled([...metricsToAdd.map(e => makeEvent(targetPageId, {
                 name: e.name, config: { selector: e.selector }, event_type: 'click'
             }))]).then(res => {
                 const resEvents: OptEvent[] = res.map((x: any) => {
