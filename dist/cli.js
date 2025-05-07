@@ -33,6 +33,15 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -49,6 +58,8 @@ const chokidar_1 = __importDefault(require("chokidar"));
 const http_1 = __importDefault(require("http"));
 const ws_1 = __importDefault(require("ws"));
 const open_1 = __importDefault(require("open"));
+const esbuild_1 = require("esbuild");
+const esbuild_sass_plugin_1 = require("esbuild-sass-plugin");
 dotenv.config();
 const SYS_FILE = {
     projects: "projects.json",
@@ -58,6 +69,8 @@ const SYS_FILE = {
     experiment: "experiment.json",
     JS: "custom.js",
     CSS: "custom.css",
+    TS: 'index.ts',
+    SCSS: 'index.scss',
     variationPath: ".variation-dir",
     metrics: "metrics.json",
 };
@@ -164,6 +177,10 @@ program
             catch (e) { }
             fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.JS), customJS);
             fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.CSS), customCSS);
+            if (!fs_1.default.existsSync(path_1.default.join(variationPath, SYS_FILE.TS)))
+                fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.TS), customJS);
+            if (!fs_1.default.existsSync(path_1.default.join(variationPath, SYS_FILE.SCSS)))
+                fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.SCSS), customCSS);
             experimentEntry.variations.push({ name: _variation.name, dirName: variationDir, id: _variation.variation_id });
         });
         localExperiments.push(experimentEntry);
@@ -280,8 +297,9 @@ program
 });
 program
     .command("dev")
+    .argument('[type]', "Value can be js or ts. Setting js will disable TS and SCSS bundling/compiling")
     .description("Run the recently pulled variation in a local server")
-    .action(() => {
+    .action((type) => __awaiter(void 0, void 0, void 0, function* () {
     const devRoot = (0, util_1.readText)(SYS_FILE.variationPath);
     if (!devRoot)
         return console.log("Try pulling a variation first");
@@ -302,6 +320,55 @@ program
                 ws.onmessage = () => location.reload();
             `);
     });
+    if (type !== 'js') {
+        const tsPath = path_1.default.join(devRoot, SYS_FILE.TS);
+        const scssPath = path_1.default.join(devRoot, SYS_FILE.SCSS);
+        const bundleWatcher = chokidar_1.default.watch([tsPath, scssPath]);
+        function bundleJS() {
+            return __awaiter(this, void 0, void 0, function* () {
+                try {
+                    yield (0, esbuild_1.build)({
+                        entryPoints: [tsPath],
+                        outfile: jsPath,
+                        bundle: true,
+                        platform: 'browser',
+                        target: ['es2015'],
+                        format: 'esm'
+                    });
+                    console.log(`Bundled ${SYS_FILE.TS} to ${SYS_FILE.JS}`);
+                }
+                catch (error) {
+                    console.error(`Error bundling TypeScript: ${error.message}`);
+                }
+            });
+        }
+        function bundleCss() {
+            return __awaiter(this, void 0, void 0, function* () {
+                try {
+                    yield (0, esbuild_1.build)({
+                        entryPoints: [scssPath],
+                        outfile: cssPath,
+                        bundle: true,
+                        plugins: [(0, esbuild_sass_plugin_1.sassPlugin)()],
+                    });
+                    console.log(`Compiled ${SYS_FILE.SCSS} to ${SYS_FILE.CSS}`);
+                }
+                catch (error) {
+                    console.error(`Error compiling SCSS: ${error.message}`);
+                }
+            });
+        }
+        yield bundleCss();
+        yield bundleJS();
+        bundleWatcher.on('change', (filePath) => __awaiter(void 0, void 0, void 0, function* () {
+            console.log(`${filePath} changed. Processing...`);
+            if (filePath.endsWith(SYS_FILE.TS))
+                yield bundleJS();
+            if (filePath.endsWith(SYS_FILE.SCSS))
+                yield bundleCss();
+        }));
+        console.log("Please modify the TS/SCSS files, they will automatically get bundled/compiled.");
+    }
     const watcher = chokidar_1.default.watch([jsPath, cssPath]);
     watcher.on('change', (filePath) => {
         console.log(`${filePath} changed. Reloading...`);
@@ -315,7 +382,7 @@ program
         console.log(`Development server running at http://localhost:${PORT}`);
         console.log(`Hot-reload enabled. Watching for changes in ${SYS_FILE.JS} and ${SYS_FILE.CSS}`);
     });
-});
+}));
 program
     .command("metric")
     .description("Try and sync metrics from a list of selector and metric name")

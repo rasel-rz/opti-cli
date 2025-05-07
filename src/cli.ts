@@ -11,7 +11,9 @@ import express from 'express';
 import chokidar from 'chokidar';
 import http from 'http';
 import WebSocket from 'ws';
-import open, { apps } from 'open';
+import open from 'open';
+import { build } from 'esbuild';
+import { sassPlugin } from 'esbuild-sass-plugin';
 
 dotenv.config();
 
@@ -23,6 +25,8 @@ const SYS_FILE = {
     experiment: "experiment.json",
     JS: "custom.js",
     CSS: "custom.css",
+    TS: 'index.ts',
+    SCSS: 'index.scss',
     variationPath: ".variation-dir",
     metrics: "metrics.json",
 }
@@ -119,6 +123,10 @@ program
                 } catch (e) { }
                 fs.writeFileSync(path.join(variationPath, SYS_FILE.JS), customJS);
                 fs.writeFileSync(path.join(variationPath, SYS_FILE.CSS), customCSS);
+                if (!fs.existsSync(path.join(variationPath, SYS_FILE.TS)))
+                    fs.writeFileSync(path.join(variationPath, SYS_FILE.TS), customJS);
+                if (!fs.existsSync(path.join(variationPath, SYS_FILE.SCSS)))
+                    fs.writeFileSync(path.join(variationPath, SYS_FILE.SCSS), customCSS);
                 experimentEntry.variations.push({ name: _variation.name, dirName: variationDir, id: _variation.variation_id });
             });
             localExperiments.push(experimentEntry);
@@ -219,8 +227,9 @@ program
 
 program
     .command("dev")
+    .argument('[type]', "Value can be js or ts. Setting js will disable TS and SCSS bundling/compiling")
     .description("Run the recently pulled variation in a local server")
-    .action(() => {
+    .action(async (type) => {
         const devRoot = readText(SYS_FILE.variationPath);
         if (!devRoot) return console.log("Try pulling a variation first");
 
@@ -245,6 +254,50 @@ program
             `);
         });
 
+        if (type !== 'js') {
+            const tsPath = path.join(devRoot, SYS_FILE.TS);
+            const scssPath = path.join(devRoot, SYS_FILE.SCSS);
+            const bundleWatcher = chokidar.watch([tsPath, scssPath]);
+
+            async function bundleJS() {
+                try {
+                    await build({
+                        entryPoints: [tsPath],
+                        outfile: jsPath,
+                        bundle: true,
+                        platform: 'browser',
+                        target: ['es2015'],
+                        format: 'esm'
+                    });
+                    console.log(`Bundled ${SYS_FILE.TS} to ${SYS_FILE.JS}`);
+                } catch (error: any) {
+                    console.error(`Error bundling TypeScript: ${error.message}`);
+                }
+            }
+
+            async function bundleCss() {
+                try {
+                    await build({
+                        entryPoints: [scssPath],
+                        outfile: cssPath,
+                        bundle: true,
+                        plugins: [sassPlugin()],
+                    });
+                    console.log(`Compiled ${SYS_FILE.SCSS} to ${SYS_FILE.CSS}`);
+                } catch (error: any) {
+                    console.error(`Error compiling SCSS: ${error.message}`);
+                }
+            }
+
+            await bundleCss(); await bundleJS();
+            bundleWatcher.on('change', async (filePath) => {
+                console.log(`${filePath} changed. Processing...`);
+                if (filePath.endsWith(SYS_FILE.TS)) await bundleJS()
+                if (filePath.endsWith(SYS_FILE.SCSS)) await bundleCss();
+            });
+            console.log("Please modify the TS/SCSS files, they will automatically get bundled/compiled.");
+        }
+
         const watcher = chokidar.watch([jsPath, cssPath]);
         watcher.on('change', (filePath) => {
             console.log(`${filePath} changed. Reloading...`);
@@ -254,6 +307,7 @@ program
                 }
             });
         });
+
         server.listen(PORT, () => {
             console.log(`Development server running at http://localhost:${PORT}`);
             console.log(`Hot-reload enabled. Watching for changes in ${SYS_FILE.JS} and ${SYS_FILE.CSS}`);
