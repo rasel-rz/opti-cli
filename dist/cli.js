@@ -48,6 +48,7 @@ const express_1 = __importDefault(require("express"));
 const chokidar_1 = __importDefault(require("chokidar"));
 const http_1 = __importDefault(require("http"));
 const ws_1 = __importDefault(require("ws"));
+const open_1 = __importDefault(require("open"));
 dotenv.config();
 const SYS_FILE = {
     projects: "projects.json",
@@ -71,6 +72,7 @@ program
     .description('Set the current working experiment/project')
     .action((link) => {
     const context = (0, context_1.setContext)(link);
+    fs_1.default.writeFileSync(SYS_FILE.variationPath, '');
     console.log(`Context set to: ${JSON.stringify(context)}`);
 });
 program
@@ -79,10 +81,9 @@ program
     .description("Pulls the projects of a client into local directory and updates projects.json")
     .action((client) => {
     const clientPath = path_1.default.join(SYS_FILE.root, client);
-    const tokenPath = path_1.default.join(clientPath, SYS_FILE.PAT);
-    if (!fs_1.default.existsSync(tokenPath))
-        return console.log("Client directory/PAT not found!");
-    const token = fs_1.default.readFileSync(tokenPath, 'utf-8');
+    const token = (0, util_1.readText)(path_1.default.join(clientPath, SYS_FILE.PAT));
+    if (!token)
+        return;
     const api = (0, api_1.getApiClient)(token);
     api.get('/projects').then(res => {
         if (!res)
@@ -96,13 +97,13 @@ program
                 dirName: (0, util_1.sanitizeDirName)(project.name)
             };
         });
-        fs_1.default.writeFileSync(path_1.default.join(clientPath, SYS_FILE.projects), JSON.stringify(projectConfig, null, 2));
+        (0, util_1.writeJson)(path_1.default.join(clientPath, SYS_FILE.projects), projectConfig);
         projectConfig.forEach((p) => {
             const projectPath = path_1.default.join(clientPath, p.dirName);
             if (fs_1.default.existsSync(projectPath))
                 return;
             fs_1.default.mkdirSync(projectPath);
-            fs_1.default.writeFileSync(path_1.default.join(projectPath, SYS_FILE.experiments), JSON.stringify([], null, 2));
+            (0, util_1.writeJson)(path_1.default.join(projectPath, SYS_FILE.experiments), []);
             console.log(`Missing project dir created @${projectPath.toString()}`);
         });
     });
@@ -112,19 +113,18 @@ program
     .description('Pull the current experiment to local machine')
     .action(() => {
     var _a;
-    const { client, project, experiment } = (0, context_1.getContext)();
+    const { client, project, experiment, variation } = (0, context_1.getContext)();
     if (!client || !project || !experiment)
         return console.log("Missing context. Try npx optly use <experiment/variation link>");
     const clientPath = path_1.default.join(SYS_FILE.root, client);
-    const projects = JSON.parse(fs_1.default.readFileSync(path_1.default.join(clientPath, SYS_FILE.projects), 'utf-8'));
+    const projects = (0, util_1.readJson)(path_1.default.join(clientPath, SYS_FILE.projects)) || [];
     const projectDir = (_a = projects.find((p) => p.id === project)) === null || _a === void 0 ? void 0 : _a.dirName;
     if (!projectDir)
         return console.log("Can't find project local directory. Try npx optly init <client-directory>");
     const projectPath = path_1.default.join(clientPath, projectDir);
-    const tokenPath = path_1.default.join(clientPath, SYS_FILE.PAT);
-    if (!fs_1.default.existsSync(tokenPath))
-        return console.log("Client directory/PAT not found!");
-    const token = fs_1.default.readFileSync(tokenPath, 'utf-8');
+    const token = (0, util_1.readText)(path_1.default.join(clientPath, SYS_FILE.PAT));
+    if (!token)
+        return;
     const api = (0, api_1.getApiClient)(token);
     api.get(`/experiments/${experiment}`).then(res => {
         if (!res)
@@ -137,7 +137,7 @@ program
             fs_1.default.mkdirSync(experimentPath);
         const localExperiments = [];
         try {
-            localExperiments.push(...JSON.parse(fs_1.default.readFileSync(path_1.default.join(projectPath, SYS_FILE.experiments), 'utf-8')));
+            localExperiments.push(...(0, util_1.readJson)(path_1.default.join(projectPath, SYS_FILE.experiments)));
         }
         catch (e) { }
         const experimentEntryIndex = localExperiments.findIndex((xp) => xp.id === experiment);
@@ -145,31 +145,32 @@ program
             localExperiments.splice(experimentEntryIndex, 1);
         }
         const experimentEntry = { name: res.data.name, dirName: experimentDir, id: experiment, variations: [] };
-        fs_1.default.writeFileSync(path_1.default.join(experimentPath, SYS_FILE.experiment), JSON.stringify(res.data, null, 2));
-        res.data.variations.forEach((variation) => {
-            const variationDir = (0, util_1.sanitizeDirName)(variation.name);
+        (0, util_1.writeJson)(path_1.default.join(experimentPath, SYS_FILE.experiment), res.data);
+        res.data.variations.forEach((_variation) => {
+            const variationDir = (0, util_1.sanitizeDirName)(_variation.name);
             const variationPath = path_1.default.join(experimentPath, variationDir);
             if (!fs_1.default.existsSync(variationPath))
                 fs_1.default.mkdirSync(variationPath);
-            fs_1.default.writeFileSync(SYS_FILE.variationPath, variationPath);
+            if (_variation.variation_id === variation)
+                fs_1.default.writeFileSync(SYS_FILE.variationPath, variationPath);
             let customJS = "", customCSS = "";
             try {
-                customJS = variation.actions[0].changes.find((x) => x.type === 'custom_code').value;
+                customJS = _variation.actions[0].changes.find((x) => x.type === 'custom_code').value;
             }
             catch (e) { }
             try {
-                customCSS = variation.actions[0].changes.find((x) => x.type === 'custom_css').value;
+                customCSS = _variation.actions[0].changes.find((x) => x.type === 'custom_css').value;
             }
             catch (e) { }
             fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.JS), customJS);
             fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.CSS), customCSS);
-            experimentEntry.variations.push({ name: variation.name, dirName: variationDir, id: variation.variation_id });
+            experimentEntry.variations.push({ name: _variation.name, dirName: variationDir, id: _variation.variation_id });
         });
         localExperiments.push(experimentEntry);
-        fs_1.default.writeFileSync(path_1.default.join(projectPath, SYS_FILE.experiments), JSON.stringify(localExperiments, null, 2));
+        (0, util_1.writeJson)(path_1.default.join(projectPath, SYS_FILE.experiments), localExperiments);
         const metricPath = path_1.default.join(experimentPath, SYS_FILE.metrics);
         if (!fs_1.default.existsSync(metricPath))
-            fs_1.default.writeFileSync(metricPath, JSON.stringify([], null, 2));
+            (0, util_1.writeJson)(metricPath, []);
         console.log(`${res.data.name} pulled!`);
     });
 });
@@ -183,17 +184,16 @@ program
     if (!client || !project || !experiment || !variation)
         return console.log("Missing context. Try npx optly use <variation link>");
     const clientPath = path_1.default.join(SYS_FILE.root, client);
-    const projects = JSON.parse(fs_1.default.readFileSync(path_1.default.join(clientPath, SYS_FILE.projects), 'utf-8'));
+    const projects = (0, util_1.readJson)(path_1.default.join(clientPath, SYS_FILE.projects)) || [];
     const projectDir = (_a = projects.find((p) => p.id === project)) === null || _a === void 0 ? void 0 : _a.dirName;
     if (!projectDir)
         return console.log("Can't find project local directory. Try npx optly init <client-directory>");
     const projectPath = path_1.default.join(clientPath, projectDir);
-    const tokenPath = path_1.default.join(clientPath, SYS_FILE.PAT);
-    if (!fs_1.default.existsSync(tokenPath))
-        return console.log("Client directory/PAT not found!");
-    const token = fs_1.default.readFileSync(tokenPath, 'utf-8');
+    const token = (0, util_1.readText)(path_1.default.join(clientPath, SYS_FILE.PAT));
+    if (!token)
+        return;
     const api = (0, api_1.getApiClient)(token);
-    const experiments = JSON.parse(fs_1.default.readFileSync(path_1.default.join(projectPath, SYS_FILE.experiments), 'utf-8'));
+    const experiments = (0, util_1.readJson)(path_1.default.join(projectPath, SYS_FILE.experiments)) || [];
     const experimentJson = experiments.find((xp) => xp.id === experiment);
     if (!experimentJson)
         return console.log("Can't find experiment. Try running npx optly pull");
@@ -204,9 +204,9 @@ program
         return console.log("Can't find variation. Try running npx optly pull");
     const variationDir = variationJson.dirName;
     const variationPath = path_1.default.join(experimentPath, variationDir);
-    const customJS = fs_1.default.readFileSync(path_1.default.join(variationPath, SYS_FILE.JS), 'utf-8');
-    const customCSS = fs_1.default.readFileSync(path_1.default.join(variationPath, SYS_FILE.CSS), 'utf-8');
-    const experimentBody = JSON.parse(fs_1.default.readFileSync(path_1.default.join(experimentPath, SYS_FILE.experiment), 'utf-8'));
+    const customJS = (0, util_1.readText)(path_1.default.join(variationPath, SYS_FILE.JS));
+    const customCSS = (0, util_1.readText)(path_1.default.join(variationPath, SYS_FILE.CSS));
+    const experimentBody = (0, util_1.readJson)(path_1.default.join(experimentPath, SYS_FILE.experiment));
     const variationBody = experimentBody.variations.find((v) => v.variation_id === variation);
     const targetPageId = experimentBody.page_ids && experimentBody.page_ids[0] || experimentBody.url_targeting.page_id;
     if (customJS) {
@@ -265,17 +265,26 @@ program
     api.patch(apiUrl, experimentBody).then(res => {
         if (!res)
             return;
-        fs_1.default.writeFileSync(path_1.default.join(experimentPath, SYS_FILE.experiment), JSON.stringify(res.data, null, 2));
+        (0, util_1.writeJson)(path_1.default.join(experimentPath, SYS_FILE.experiment), res.data);
         console.log(`${experimentJson.name} updated successfully!`);
+        if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
+            try {
+                const updatedVariation = res.data.variations.find((v) => v.variation_id === variation);
+                (0, open_1.default)(updatedVariation.actions[0].share_link);
+            }
+            catch (e) {
+                console.log("Error opening preview link. Please try manually.");
+            }
+        }
     });
 });
 program
     .command("dev")
     .description("Run the recently pulled variation in a local server")
     .action(() => {
-    if (!fs_1.default.existsSync(SYS_FILE.variationPath))
+    const devRoot = (0, util_1.readText)(SYS_FILE.variationPath);
+    if (!devRoot)
         return console.log("Try pulling a variation first");
-    const devRoot = fs_1.default.readFileSync(SYS_FILE.variationPath, 'utf-8');
     const jsPath = path_1.default.join(devRoot, SYS_FILE.JS);
     const cssPath = path_1.default.join(devRoot, SYS_FILE.CSS);
     if (!fs_1.default.existsSync(jsPath) || !fs_1.default.existsSync(cssPath)) {
@@ -311,30 +320,26 @@ program
     .command("metric")
     .description("Try and sync metrics from a list of selector and metric name")
     .action(() => {
-    const { client, project } = (0, context_1.getContext)();
+    const { client } = (0, context_1.getContext)();
     if (!client)
         return console.log("Missing context. Try npx optly use <variation link>");
     const clientPath = path_1.default.join(SYS_FILE.root, client);
-    const tokenPath = path_1.default.join(clientPath, SYS_FILE.PAT);
-    if (!fs_1.default.existsSync(tokenPath))
-        return console.log("Client directory/PAT not found!");
-    const token = fs_1.default.readFileSync(tokenPath, 'utf-8');
+    const token = (0, util_1.readText)(path_1.default.join(clientPath, SYS_FILE.PAT));
+    if (!token)
+        return;
     const api = (0, api_1.getApiClient)(token);
     function getEvent(eventId) { return api.get(`/events/${eventId}`); }
     function makeEvent(pageId, event) {
         return api.post(`/pages/${pageId}/events`, event);
     }
-    if (!fs_1.default.existsSync(SYS_FILE.variationPath))
+    const devRoot = (0, util_1.readText)(SYS_FILE.variationPath);
+    if (!devRoot)
         return console.log("Try pulling a variation first");
-    const devRoot = fs_1.default.readFileSync(SYS_FILE.variationPath, 'utf-8');
     const experimentPath = path_1.default.join(devRoot, '..');
-    const metricsPath = path_1.default.join(experimentPath, SYS_FILE.metrics);
-    if (!fs_1.default.existsSync(metricsPath))
-        return console.log(`Try defining a metrics.json in experiment dir.`);
-    const metrics = JSON.parse(fs_1.default.readFileSync(metricsPath, 'utf-8'));
+    const metrics = (0, util_1.readJson)(path_1.default.join(experimentPath, SYS_FILE.metrics)) || [];
     if (!metrics.length)
         return console.log("No metrics found to be added!");
-    const xpJson = JSON.parse(fs_1.default.readFileSync(path_1.default.join(experimentPath, SYS_FILE.experiment), 'utf-8'));
+    const xpJson = (0, util_1.readJson)(path_1.default.join(experimentPath, SYS_FILE.experiment));
     const alreadyAddedMetrics = xpJson.metrics.map((x) => x.event_id).map(getEvent);
     Promise.all([...alreadyAddedMetrics]).then((res) => {
         const resMetrics = res.map((x) => x.data);
@@ -357,7 +362,7 @@ program
                 return { event_id: Number(e.id), winning_direction: 'increasing', aggregator: 'unique', scope: 'visitor' };
             }).filter(x => x);
             xpJson.metrics.push(...metricsToPushOnXp);
-            fs_1.default.writeFileSync(path_1.default.join(experimentPath, SYS_FILE.experiment), JSON.stringify(xpJson, null, 2));
+            (0, util_1.writeJson)(path_1.default.join(experimentPath, SYS_FILE.experiment), xpJson);
             console.log(`${metricsToPushOnXp.length} metric(s) added. Run npx optly push to push the changes.`);
         });
     });

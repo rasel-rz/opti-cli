@@ -1,6 +1,6 @@
 {
   "name": "opti-cli",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "CLI for Optimizely Web Experimentation",
   "main": "src/cli.ts",
   "scripts": {
@@ -32,6 +32,7 @@
     "commander": "^13.1.0",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "open": "^10.1.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "ws": "^8.18.1"

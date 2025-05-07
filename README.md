@@ -119,5 +119,11 @@ This will create click events on the targeted page. To add the events as metrics
 ## Pushing a change
 Once you are done making changes to `custom.js` and `custom.css`, you can push the changes by running `npx optly push`. This will only update the changes in the platform, won't publish them. To publish the changes directly from CLI, you can run `npx optly push publish`.
 
+Pushing a change will automatically open the preview link in your default browser.
+
+## Environment Variables
+### DISABLE_PREVIEW_ON_PUSH
+Value can be `true` or `anything else`. If value is set to `true`, CLI will stop opening preview on push.
+
 ## Thank you!
 Any kind of feedback is welcome.
