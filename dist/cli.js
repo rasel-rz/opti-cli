@@ -57,7 +57,7 @@ const express_1 = __importDefault(require("express"));
 const chokidar_1 = __importDefault(require("chokidar"));
 const http_1 = __importDefault(require("http"));
 const ws_1 = __importDefault(require("ws"));
-const open_1 = __importDefault(require("open"));
+// import open from 'open';
 const esbuild_1 = require("esbuild");
 const esbuild_sass_plugin_1 = require("esbuild-sass-plugin");
 dotenv.config();
@@ -289,7 +289,8 @@ program
         if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
             try {
                 const updatedVariation = res.data.variations.find((v) => v.variation_id === variation);
-                (0, open_1.default)(updatedVariation.actions[0].share_link);
+                // open(updatedVariation.actions[0].share_link);
+                console.log("CTRL/CMD + Click -> ", updatedVariation.actions[0].share_link);
             }
             catch (e) {
                 console.log("Error opening preview link. Please try manually.");

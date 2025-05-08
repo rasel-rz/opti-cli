@@ -11,7 +11,7 @@ import express from 'express';
 import chokidar from 'chokidar';
 import http from 'http';
 import WebSocket from 'ws';
-import open from 'open';
+// import open from 'open';
 import { build } from 'esbuild';
 import { sassPlugin } from 'esbuild-sass-plugin';
 
@@ -221,7 +221,8 @@ program
             if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
                 try {
                     const updatedVariation = res.data.variations.find((v: any) => v.variation_id === variation);
-                    open(updatedVariation.actions[0].share_link);
+                    // open(updatedVariation.actions[0].share_link);
+                    console.log("CTRL/CMD + Click -> ", updatedVariation.actions[0].share_link);
                 } catch (e) { console.log("Error opening preview link. Please try manually."); }
             }
         });
