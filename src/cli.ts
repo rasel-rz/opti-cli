@@ -123,10 +123,12 @@ program
                 } catch (e) { }
                 fs.writeFileSync(path.join(variationPath, SYS_FILE.JS), customJS);
                 fs.writeFileSync(path.join(variationPath, SYS_FILE.CSS), customCSS);
-                if (!fs.existsSync(path.join(variationPath, SYS_FILE.TS)))
-                    fs.writeFileSync(path.join(variationPath, SYS_FILE.TS), customJS);
-                if (!fs.existsSync(path.join(variationPath, SYS_FILE.SCSS)))
-                    fs.writeFileSync(path.join(variationPath, SYS_FILE.SCSS), customCSS);
+                if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
+                    if (!fs.existsSync(path.join(variationPath, SYS_FILE.TS)))
+                        fs.writeFileSync(path.join(variationPath, SYS_FILE.TS), customJS);
+                    if (!fs.existsSync(path.join(variationPath, SYS_FILE.SCSS)))
+                        fs.writeFileSync(path.join(variationPath, SYS_FILE.SCSS), customCSS);
+                }
                 experimentEntry.variations.push({ name: _variation.name, dirName: variationDir, id: _variation.variation_id });
             });
             localExperiments.push(experimentEntry);
@@ -227,7 +229,6 @@ program
 
 program
     .command("dev")
-    .argument('[type]', "Value can be js or ts. Setting js will disable TS and SCSS bundling/compiling")
     .description("Run the recently pulled variation in a local server")
     .action(async (type) => {
         const devRoot = readText(SYS_FILE.variationPath);
@@ -254,7 +255,7 @@ program
             `);
         });
 
-        if (type !== 'js') {
+        if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
             const tsPath = path.join(devRoot, SYS_FILE.TS);
             const scssPath = path.join(devRoot, SYS_FILE.SCSS);
             const bundleWatcher = chokidar.watch([tsPath, scssPath]);

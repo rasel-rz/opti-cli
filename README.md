@@ -98,7 +98,7 @@ Then add an script as following:
 This script will match all URL. So activating it on-click only will prevent the browser unnecessary reloads.
 Now, run `npx optly dev`, navigate to the TAB you want to test the changes, enable Tampermonkey on that TAB, reload, enjoy!
 
-The CLI by default supports typescript and scss. If you want the dev enviroment to disable them, just run `npx optly dev js`. This will stop compiling the TS/SCSS to custom JS/CSS and you can simply modify the custom JS/CSS and continue development.
+The CLI by default supports typescript and scss. If you want the dev enviroment to disable them, check out *Environment Variables* section.
 
 ## Metrics
 The REST API doesn't support test specific/variation only metrics. It only allows us to create and attach page based metrics. Once you pull an experiment, you should have an empty _metrics.json_ on your experiment folder. To create a metric, we need need a CSS Selector and a name. Update the `metrics.json` as follows:
@@ -128,6 +128,9 @@ Pushing a change will automatically open the preview link in your default browse
 ## Environment Variables
 ### DISABLE_PREVIEW_ON_PUSH
 Value can be `true` or `anything else`. If value is set to `true`, CLI will stop opening preview on push.
+
+### DISABLE_TS__SCSS_BUNDLE
+Value can be `true` or `anything else`. If value is set to `true`, CLI will **_stop_ creating/bundling/compiling** `index.ts` and `index.scss` file in variation directory.
 
 ## Thank you!
 Any kind of feedback is welcome.

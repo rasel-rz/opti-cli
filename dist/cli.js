@@ -177,10 +177,12 @@ program
             catch (e) { }
             fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.JS), customJS);
             fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.CSS), customCSS);
-            if (!fs_1.default.existsSync(path_1.default.join(variationPath, SYS_FILE.TS)))
-                fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.TS), customJS);
-            if (!fs_1.default.existsSync(path_1.default.join(variationPath, SYS_FILE.SCSS)))
-                fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.SCSS), customCSS);
+            if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
+                if (!fs_1.default.existsSync(path_1.default.join(variationPath, SYS_FILE.TS)))
+                    fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.TS), customJS);
+                if (!fs_1.default.existsSync(path_1.default.join(variationPath, SYS_FILE.SCSS)))
+                    fs_1.default.writeFileSync(path_1.default.join(variationPath, SYS_FILE.SCSS), customCSS);
+            }
             experimentEntry.variations.push({ name: _variation.name, dirName: variationDir, id: _variation.variation_id });
         });
         localExperiments.push(experimentEntry);
@@ -297,7 +299,6 @@ program
 });
 program
     .command("dev")
-    .argument('[type]', "Value can be js or ts. Setting js will disable TS and SCSS bundling/compiling")
     .description("Run the recently pulled variation in a local server")
     .action((type) => __awaiter(void 0, void 0, void 0, function* () {
     const devRoot = (0, util_1.readText)(SYS_FILE.variationPath);
@@ -320,7 +321,7 @@ program
                 ws.onmessage = () => location.reload();
             `);
     });
-    if (type !== 'js') {
+    if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
         const tsPath = path_1.default.join(devRoot, SYS_FILE.TS);
         const scssPath = path_1.default.join(devRoot, SYS_FILE.SCSS);
         const bundleWatcher = chokidar_1.default.watch([tsPath, scssPath]);
