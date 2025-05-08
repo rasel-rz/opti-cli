@@ -6,13 +6,13 @@ import { setContext, getContext } from './lib/context';
 import { getApiClient } from './lib/api';
 import fs from 'fs';
 import path from 'path';
-import { sanitizeDirName, readJson, readText, writeJson } from './lib/util';
+import { sanitizeDirName, readJson, readText, writeJson, esbuildConfig, triggerReload } from './lib/util';
 import express from 'express';
 import chokidar from 'chokidar';
 import http from 'http';
 import WebSocket from 'ws';
-import { build } from 'esbuild';
-import { sassPlugin } from 'esbuild-sass-plugin';
+import { context } from 'esbuild';
+import open from 'open';
 
 dotenv.config();
 
@@ -30,7 +30,7 @@ const SYS_FILE = {
     metrics: "metrics.json",
 }
 interface Metric { selector: string, name: string };
-interface OptMetric { aggregator: 'unique', event_id: number, scope: 'visitor', winning_direction: 'increasing' };
+// interface OptMetric { aggregator: 'unique', event_id: number, scope: 'visitor', winning_direction: 'increasing' };
 interface OptEvent { name: string, id?: number, event_type: 'click', config: { selector: string }, page_id?: number };
 
 const program = new Command();
@@ -220,11 +220,7 @@ program
             if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
                 try {
                     const updatedVariation = res.data.variations.find((v: any) => v.variation_id === variation);
-                    (async () => {
-                        const { default: open } = await import('open')
-                        open(updatedVariation.actions[0].share_link);
-                    })();
-                    // console.log("CTRL/CMD + Click -> ", updatedVariation.actions[0].share_link);
+                    open(updatedVariation.actions[0].share_link);
                 } catch (e) { console.log("Error opening preview link. Please try manually."); }
             }
         });
@@ -233,12 +229,14 @@ program
 program
     .command("dev")
     .description("Run the recently pulled variation in a local server")
-    .action(async (type) => {
+    .action(async () => {
         const devRoot = readText(SYS_FILE.variationPath);
         if (!devRoot) return console.log("Try pulling a variation first");
 
-        const jsPath = path.join(devRoot, SYS_FILE.JS);
-        const cssPath = path.join(devRoot, SYS_FILE.CSS);
+        let jsPath = path.join(devRoot, SYS_FILE.JS);
+        let jsOutPath = path.join(devRoot, SYS_FILE.JS);
+        let cssPath = path.join(devRoot, SYS_FILE.CSS);
+        let cssOutPath = path.join(devRoot, SYS_FILE.CSS);
 
         if (!fs.existsSync(jsPath) || !fs.existsSync(cssPath)) {
             return console.log("custom.js or custom.css not found in the variation directory");
@@ -250,89 +248,28 @@ program
         app.use(express.static(devRoot));
         const PORT = 3000;
 
-        app.get('/hot-reload.js', (req, res) => {
-            res.setHeader('Content-Type', 'application/javascript');
-            res.send(`
-                const ws = new WebSocket('ws://localhost:${PORT}');
-                ws.onmessage = () => location.reload();
-            `);
-        });
-
         if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
-            const tsPath = path.join(devRoot, SYS_FILE.TS);
-            const scssPath = path.join(devRoot, SYS_FILE.SCSS);
-            const bundleWatcher = chokidar.watch([tsPath, scssPath]);
-
-            function removeComments(filePath: string) {
-                try {
-                    const fileContent = fs.readFileSync(filePath, 'utf-8');
-                    let updatedContent = fileContent;
-
-                    if (filePath.endsWith('.js')) {
-                        // Remove single-line comments (// ...)
-                        updatedContent = updatedContent.replace(/\/\/.*.ts\n/gm, '');
-                    } else if (filePath.endsWith('.css')) {
-                        // Remove multi-line comments (/* ... */)
-                        updatedContent = updatedContent.replace(/\/\*[\s\S]*?\.scss\s\*\/\n/g, '');
-                    }
-
-                    fs.writeFileSync(filePath, updatedContent, 'utf-8');
-                } catch (error: any) {
-                    console.error(`Error removing comments from ${filePath}: ${error.message}`);
-                }
-            }
-
-            async function bundleJS() {
-                try {
-                    await build({
-                        entryPoints: [tsPath],
-                        outfile: jsPath,
-                        bundle: true,
-                        platform: 'browser',
-                        legalComments: 'none',
-                        target: ['es2015'],
-                        format: 'esm'
-                    });
-                    removeComments(jsPath)
-                    console.log(`Bundled ${SYS_FILE.TS} to ${SYS_FILE.JS}`);
-                } catch (error: any) {
-                    console.error(`Error bundling TypeScript: ${error.message}`);
-                }
-            }
-
-            async function bundleCss() {
-                try {
-                    await build({
-                        entryPoints: [scssPath],
-                        outfile: cssPath,
-                        bundle: true,
-                        plugins: [sassPlugin()],
-                    });
-                    removeComments(cssPath);
-                    console.log(`Compiled ${SYS_FILE.SCSS} to ${SYS_FILE.CSS}`);
-                } catch (error: any) {
-                    console.error(`Error compiling SCSS: ${error.message}`);
-                }
-            }
-
-            await bundleCss(); await bundleJS();
-            bundleWatcher.on('change', async (filePath) => {
-                console.log(`${filePath} changed. Processing...`);
-                if (filePath.endsWith(SYS_FILE.TS)) await bundleJS()
-                if (filePath.endsWith(SYS_FILE.SCSS)) await bundleCss();
-            });
+            jsPath = path.join(devRoot, SYS_FILE.TS);
+            cssPath = path.join(devRoot, SYS_FILE.SCSS);
             console.log("Please modify the TS/SCSS files, they will automatically get bundled/compiled.");
-        }
 
-        const watcher = chokidar.watch([jsPath, cssPath]);
-        watcher.on('change', (filePath) => {
-            console.log(`${filePath} changed. Reloading...`);
-            wss.clients.forEach(client => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send('reload');
-                }
-            });
-        });
+            try {
+                const jsCtx = await context(esbuildConfig(jsPath, jsOutPath, wss));
+                await jsCtx.watch();
+            } catch (error: any) {
+                console.error(`Error bundling TypeScript: ${error.message}`);
+            }
+
+            try {
+                const cssCtx = await context(esbuildConfig(cssPath, cssOutPath, wss));
+                await cssCtx.watch();
+            } catch (error: any) {
+                console.error(`Error compiling SCSS: ${error.message}`);
+            }
+        } else {
+            const watcher = chokidar.watch([jsPath, cssPath]);
+            watcher.on('change', (filePath) => { triggerReload(filePath, wss); });
+        }
 
         server.listen(PORT, () => {
             console.log(`Development server running at http://localhost:${PORT}`);

@@ -58,7 +58,7 @@ const chokidar_1 = __importDefault(require("chokidar"));
 const http_1 = __importDefault(require("http"));
 const ws_1 = __importDefault(require("ws"));
 const esbuild_1 = require("esbuild");
-const esbuild_sass_plugin_1 = require("esbuild-sass-plugin");
+const open_1 = __importDefault(require("open"));
 dotenv.config();
 const SYS_FILE = {
     projects: "projects.json",
@@ -73,7 +73,6 @@ const SYS_FILE = {
     variationPath: ".variation-dir",
     metrics: "metrics.json",
 };
-;
 ;
 ;
 const program = new commander_1.Command();
@@ -288,11 +287,7 @@ program
         if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
             try {
                 const updatedVariation = res.data.variations.find((v) => v.variation_id === variation);
-                (() => __awaiter(void 0, void 0, void 0, function* () {
-                    const { default: open } = yield Promise.resolve().then(() => __importStar(require('open')));
-                    open(updatedVariation.actions[0].share_link);
-                }))();
-                // console.log("CTRL/CMD + Click -> ", updatedVariation.actions[0].share_link);
+                (0, open_1.default)(updatedVariation.actions[0].share_link);
             }
             catch (e) {
                 console.log("Error opening preview link. Please try manually.");
@@ -303,12 +298,14 @@ program
 program
     .command("dev")
     .description("Run the recently pulled variation in a local server")
-    .action((type) => __awaiter(void 0, void 0, void 0, function* () {
+    .action(() => __awaiter(void 0, void 0, void 0, function* () {
     const devRoot = (0, util_1.readText)(SYS_FILE.variationPath);
     if (!devRoot)
         return console.log("Try pulling a variation first");
-    const jsPath = path_1.default.join(devRoot, SYS_FILE.JS);
-    const cssPath = path_1.default.join(devRoot, SYS_FILE.CSS);
+    let jsPath = path_1.default.join(devRoot, SYS_FILE.JS);
+    let jsOutPath = path_1.default.join(devRoot, SYS_FILE.JS);
+    let cssPath = path_1.default.join(devRoot, SYS_FILE.CSS);
+    let cssOutPath = path_1.default.join(devRoot, SYS_FILE.CSS);
     if (!fs_1.default.existsSync(jsPath) || !fs_1.default.existsSync(cssPath)) {
         return console.log("custom.js or custom.css not found in the variation directory");
     }
@@ -317,92 +314,29 @@ program
     const wss = new ws_1.default.Server({ server });
     app.use(express_1.default.static(devRoot));
     const PORT = 3000;
-    app.get('/hot-reload.js', (req, res) => {
-        res.setHeader('Content-Type', 'application/javascript');
-        res.send(`
-                const ws = new WebSocket('ws://localhost:${PORT}');
-                ws.onmessage = () => location.reload();
-            `);
-    });
     if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
-        const tsPath = path_1.default.join(devRoot, SYS_FILE.TS);
-        const scssPath = path_1.default.join(devRoot, SYS_FILE.SCSS);
-        const bundleWatcher = chokidar_1.default.watch([tsPath, scssPath]);
-        function removeComments(filePath) {
-            try {
-                const fileContent = fs_1.default.readFileSync(filePath, 'utf-8');
-                let updatedContent = fileContent;
-                if (filePath.endsWith('.js')) {
-                    // Remove single-line comments (// ...)
-                    updatedContent = updatedContent.replace(/\/\/.*.ts\n/gm, '');
-                }
-                else if (filePath.endsWith('.css')) {
-                    // Remove multi-line comments (/* ... */)
-                    updatedContent = updatedContent.replace(/\/\*[\s\S]*?\.scss\s\*\/\n/g, '');
-                }
-                fs_1.default.writeFileSync(filePath, updatedContent, 'utf-8');
-            }
-            catch (error) {
-                console.error(`Error removing comments from ${filePath}: ${error.message}`);
-            }
-        }
-        function bundleJS() {
-            return __awaiter(this, void 0, void 0, function* () {
-                try {
-                    yield (0, esbuild_1.build)({
-                        entryPoints: [tsPath],
-                        outfile: jsPath,
-                        bundle: true,
-                        platform: 'browser',
-                        legalComments: 'none',
-                        target: ['es2015'],
-                        format: 'esm'
-                    });
-                    removeComments(jsPath);
-                    console.log(`Bundled ${SYS_FILE.TS} to ${SYS_FILE.JS}`);
-                }
-                catch (error) {
-                    console.error(`Error bundling TypeScript: ${error.message}`);
-                }
-            });
-        }
-        function bundleCss() {
-            return __awaiter(this, void 0, void 0, function* () {
-                try {
-                    yield (0, esbuild_1.build)({
-                        entryPoints: [scssPath],
-                        outfile: cssPath,
-                        bundle: true,
-                        plugins: [(0, esbuild_sass_plugin_1.sassPlugin)()],
-                    });
-                    removeComments(cssPath);
-                    console.log(`Compiled ${SYS_FILE.SCSS} to ${SYS_FILE.CSS}`);
-                }
-                catch (error) {
-                    console.error(`Error compiling SCSS: ${error.message}`);
-                }
-            });
-        }
-        yield bundleCss();
-        yield bundleJS();
-        bundleWatcher.on('change', (filePath) => __awaiter(void 0, void 0, void 0, function* () {
-            console.log(`${filePath} changed. Processing...`);
-            if (filePath.endsWith(SYS_FILE.TS))
-                yield bundleJS();
-            if (filePath.endsWith(SYS_FILE.SCSS))
-                yield bundleCss();
-        }));
+        jsPath = path_1.default.join(devRoot, SYS_FILE.TS);
+        cssPath = path_1.default.join(devRoot, SYS_FILE.SCSS);
         console.log("Please modify the TS/SCSS files, they will automatically get bundled/compiled.");
+        try {
+            const jsCtx = yield (0, esbuild_1.context)((0, util_1.esbuildConfig)(jsPath, jsOutPath, wss));
+            yield jsCtx.watch();
+        }
+        catch (error) {
+            console.error(`Error bundling TypeScript: ${error.message}`);
+        }
+        try {
+            const cssCtx = yield (0, esbuild_1.context)((0, util_1.esbuildConfig)(cssPath, cssOutPath, wss));
+            yield cssCtx.watch();
+        }
+        catch (error) {
+            console.error(`Error compiling SCSS: ${error.message}`);
+        }
     }
-    const watcher = chokidar_1.default.watch([jsPath, cssPath]);
-    watcher.on('change', (filePath) => {
-        console.log(`${filePath} changed. Reloading...`);
-        wss.clients.forEach(client => {
-            if (client.readyState === ws_1.default.OPEN) {
-                client.send('reload');
-            }
-        });
-    });
+    else {
+        const watcher = chokidar_1.default.watch([jsPath, cssPath]);
+        watcher.on('change', (filePath) => { (0, util_1.triggerReload)(filePath, wss); });
+    }
     server.listen(PORT, () => {
         console.log(`Development server running at http://localhost:${PORT}`);
         console.log(`Hot-reload enabled. Watching for changes in ${SYS_FILE.JS} and ${SYS_FILE.CSS}`);

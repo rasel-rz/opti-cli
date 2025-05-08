@@ -65,7 +65,7 @@ Then add an script as following:
 // ==UserScript==
 // @name         Opti-CLI
 // @namespace    https://rasel-rz.github.io/
-// @version      2025-05-02
+// @version      2025-05-09
 // @description  Running Optimizely Web Experiments locally for testing.
 // @author       Raihan
 // @match        *://*/*
@@ -75,24 +75,32 @@ Then add an script as following:
 
 (function () {
     'use strict';
-
+    const PORT = 3000;
     // Inject custom CSS
-    const customCSS = document.createElement('link');
-    customCSS.rel = 'stylesheet';
-    customCSS.href = 'http://localhost:3000/custom.css';
-    document.head.appendChild(customCSS);
+    function injectCss() {
+        document.querySelectorAll(`#opti-cli-css`).forEach(el => el.remove());
+        const customCSS = document.createElement('link');
+        customCSS.id = "opti-cli-css";
+        customCSS.rel = 'stylesheet';
+        customCSS.href = `http://localhost:${PORT}/custom.css`;
+        document.head.appendChild(customCSS);
+    }
 
     // Inject custom JS
-    const customJs = document.createElement('script');
-    customJs.src = 'http://localhost:3000/custom.js';
-    customJs.type = 'text/javascript';
-    document.body.appendChild(customJs);
+    function injectJs() {
+        const customJs = document.createElement('script');
+        customJs.src = `http://localhost:${PORT}/custom.js`;
+        customJs.type = 'text/javascript';
+        document.body.appendChild(customJs);
+    }
 
     // Inject hot-reload JS (optional)
-    const hotReload = document.createElement('script');
-    hotReload.src = 'http://localhost:3000/hot-reload.js';
-    hotReload.type = 'text/javascript';
-    document.body.appendChild(hotReload);
+    const ws = new WebSocket(`ws://localhost:${PORT}`);
+    ws.onmessage = ({ data }) => {
+        if (data === 'reload.css') return injectCss();
+        window.location.reload();
+    };
+    injectCss(); injectJs();
 })();
 ```
 This script will match all URL. So activating it on-click only will prevent the browser unnecessary reloads.
