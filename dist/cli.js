@@ -57,7 +57,6 @@ const express_1 = __importDefault(require("express"));
 const chokidar_1 = __importDefault(require("chokidar"));
 const http_1 = __importDefault(require("http"));
 const ws_1 = __importDefault(require("ws"));
-// import open from 'open';
 const esbuild_1 = require("esbuild");
 const esbuild_sass_plugin_1 = require("esbuild-sass-plugin");
 dotenv.config();
@@ -289,8 +288,11 @@ program
         if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
             try {
                 const updatedVariation = res.data.variations.find((v) => v.variation_id === variation);
-                // open(updatedVariation.actions[0].share_link);
-                console.log("CTRL/CMD + Click -> ", updatedVariation.actions[0].share_link);
+                (() => __awaiter(void 0, void 0, void 0, function* () {
+                    const { default: open } = yield Promise.resolve().then(() => __importStar(require('open')));
+                    open(updatedVariation.actions[0].share_link);
+                }))();
+                // console.log("CTRL/CMD + Click -> ", updatedVariation.actions[0].share_link);
             }
             catch (e) {
                 console.log("Error opening preview link. Please try manually.");
@@ -326,6 +328,24 @@ program
         const tsPath = path_1.default.join(devRoot, SYS_FILE.TS);
         const scssPath = path_1.default.join(devRoot, SYS_FILE.SCSS);
         const bundleWatcher = chokidar_1.default.watch([tsPath, scssPath]);
+        function removeComments(filePath) {
+            try {
+                const fileContent = fs_1.default.readFileSync(filePath, 'utf-8');
+                let updatedContent = fileContent;
+                if (filePath.endsWith('.js')) {
+                    // Remove single-line comments (// ...)
+                    updatedContent = updatedContent.replace(/\/\/.*.ts\n/gm, '');
+                }
+                else if (filePath.endsWith('.css')) {
+                    // Remove multi-line comments (/* ... */)
+                    updatedContent = updatedContent.replace(/\/\*[\s\S]*?\.scss\s\*\/\n/g, '');
+                }
+                fs_1.default.writeFileSync(filePath, updatedContent, 'utf-8');
+            }
+            catch (error) {
+                console.error(`Error removing comments from ${filePath}: ${error.message}`);
+            }
+        }
         function bundleJS() {
             return __awaiter(this, void 0, void 0, function* () {
                 try {
@@ -334,9 +354,11 @@ program
                         outfile: jsPath,
                         bundle: true,
                         platform: 'browser',
+                        legalComments: 'none',
                         target: ['es2015'],
                         format: 'esm'
                     });
+                    removeComments(jsPath);
                     console.log(`Bundled ${SYS_FILE.TS} to ${SYS_FILE.JS}`);
                 }
                 catch (error) {
@@ -353,6 +375,7 @@ program
                         bundle: true,
                         plugins: [(0, esbuild_sass_plugin_1.sassPlugin)()],
                     });
+                    removeComments(cssPath);
                     console.log(`Compiled ${SYS_FILE.SCSS} to ${SYS_FILE.CSS}`);
                 }
                 catch (error) {

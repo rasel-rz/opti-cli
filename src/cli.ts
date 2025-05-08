@@ -11,7 +11,6 @@ import express from 'express';
 import chokidar from 'chokidar';
 import http from 'http';
 import WebSocket from 'ws';
-// import open from 'open';
 import { build } from 'esbuild';
 import { sassPlugin } from 'esbuild-sass-plugin';
 
@@ -221,8 +220,11 @@ program
             if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
                 try {
                     const updatedVariation = res.data.variations.find((v: any) => v.variation_id === variation);
-                    // open(updatedVariation.actions[0].share_link);
-                    console.log("CTRL/CMD + Click -> ", updatedVariation.actions[0].share_link);
+                    (async () => {
+                        const { default: open } = await import('open')
+                        open(updatedVariation.actions[0].share_link);
+                    })();
+                    // console.log("CTRL/CMD + Click -> ", updatedVariation.actions[0].share_link);
                 } catch (e) { console.log("Error opening preview link. Please try manually."); }
             }
         });
@@ -261,6 +263,25 @@ program
             const scssPath = path.join(devRoot, SYS_FILE.SCSS);
             const bundleWatcher = chokidar.watch([tsPath, scssPath]);
 
+            function removeComments(filePath: string) {
+                try {
+                    const fileContent = fs.readFileSync(filePath, 'utf-8');
+                    let updatedContent = fileContent;
+
+                    if (filePath.endsWith('.js')) {
+                        // Remove single-line comments (// ...)
+                        updatedContent = updatedContent.replace(/\/\/.*.ts\n/gm, '');
+                    } else if (filePath.endsWith('.css')) {
+                        // Remove multi-line comments (/* ... */)
+                        updatedContent = updatedContent.replace(/\/\*[\s\S]*?\.scss\s\*\/\n/g, '');
+                    }
+
+                    fs.writeFileSync(filePath, updatedContent, 'utf-8');
+                } catch (error: any) {
+                    console.error(`Error removing comments from ${filePath}: ${error.message}`);
+                }
+            }
+
             async function bundleJS() {
                 try {
                     await build({
@@ -268,9 +289,11 @@ program
                         outfile: jsPath,
                         bundle: true,
                         platform: 'browser',
+                        legalComments: 'none',
                         target: ['es2015'],
                         format: 'esm'
                     });
+                    removeComments(jsPath)
                     console.log(`Bundled ${SYS_FILE.TS} to ${SYS_FILE.JS}`);
                 } catch (error: any) {
                     console.error(`Error bundling TypeScript: ${error.message}`);
@@ -285,6 +308,7 @@ program
                         bundle: true,
                         plugins: [sassPlugin()],
                     });
+                    removeComments(cssPath);
                     console.log(`Compiled ${SYS_FILE.SCSS} to ${SYS_FILE.CSS}`);
                 } catch (error: any) {
                     console.error(`Error compiling SCSS: ${error.message}`);
