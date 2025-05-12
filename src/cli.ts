@@ -108,11 +108,15 @@ program
             const experimentEntry: any = { name: res.data.name, dirName: experimentDir, id: experiment, variations: [] };
 
             writeJson(path.join(experimentPath, SYS_FILE.experiment), res.data);
+            let matchedVariationName: string[] = [];
+            if (variation && !res.data.variations.find((_v: any) => variation === _v.variation_id)) return console.log(`Can't find a variation with ID ${variation}`);
             res.data.variations.forEach((_variation: any) => {
                 const variationDir = sanitizeDirName(_variation.name);
                 const variationPath = path.join(experimentPath, variationDir);
                 if (!fs.existsSync(variationPath)) fs.mkdirSync(variationPath);
                 if (_variation.variation_id === variation) fs.writeFileSync(SYS_FILE.variationPath, variationPath);
+                if (variation && _variation.variation_id !== variation) return;
+                matchedVariationName.push(_variation.name);
                 let customJS = "", customCSS = "";
                 try {
                     customJS = _variation.actions[0].changes.find((x: any) => x.type === 'custom_code').value;
@@ -134,7 +138,7 @@ program
             writeJson(path.join(projectPath, SYS_FILE.experiments), localExperiments);
             const metricPath = path.join(experimentPath, SYS_FILE.metrics);
             if (!fs.existsSync(metricPath)) writeJson(metricPath, []);
-            console.log(`${res.data.name} pulled!`);
+            console.log(`${res.data.name} -> ${matchedVariationName.join(", ")} pulled!`);
         });
     });
 
