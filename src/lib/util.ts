@@ -2,6 +2,7 @@ import fs from 'fs';
 import { BuildOptions, PluginBuild } from 'esbuild';
 import { sassPlugin } from 'esbuild-sass-plugin';
 import WebSocket from 'ws';
+import { log } from './log';
 export function sanitizeDirName(name: string): string {
     return name.toLowerCase().replace(/[^A-Za-z0-9]/g, ' ').trim().replace(/[\s]+/g, '-');
 }
@@ -9,7 +10,7 @@ export function readText(filePath: string): string {
     if (fs.existsSync(filePath)) {
         return fs.readFileSync(filePath, 'utf-8');
     }
-    console.log(`${filePath} not found!`);
+    log.error(`${filePath} not found!`);
     return '';
 }
 export function readJson(filePath: string) {
@@ -23,7 +24,7 @@ export function writeJson(filePath: string, obj: Object): boolean {
         fs.writeFileSync(filePath, JSON.stringify(obj, null, 2));
         return true;
     } catch (e) {
-        console.log(`Error writing file: ${filePath}`);
+        log.error(`Error writing file: ${filePath}`);
         return false;
     }
 }
@@ -45,12 +46,12 @@ function cleanUpCommentsFromBuild(filePath: string) {
 }
 export function triggerReload(filePath: string, wss: WebSocket.Server) {
     const [fileExtension] = filePath.match(/\.[^.\/\\]+$/i) || ['.js']
-    console.log(`Found change(s) on ${fileExtension.replace('.', '').toUpperCase()}. Reloading...`);
     wss.clients.forEach((client: WebSocket) => {
         if (client.readyState === WebSocket.OPEN) {
             client.send(`reload${fileExtension}`);
         }
     });
+    wss.clients.size && log.info(`Found change(s) on ${fileExtension.replace('.', '').toUpperCase()}. Reloading...`);
 }
 export function esbuildConfig(input: string, out: string, wss: WebSocket.Server): BuildOptions {
     return {

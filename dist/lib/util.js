@@ -12,6 +12,7 @@ exports.esbuildConfig = esbuildConfig;
 const fs_1 = __importDefault(require("fs"));
 const esbuild_sass_plugin_1 = require("esbuild-sass-plugin");
 const ws_1 = __importDefault(require("ws"));
+const log_1 = require("./log");
 function sanitizeDirName(name) {
     return name.toLowerCase().replace(/[^A-Za-z0-9]/g, ' ').trim().replace(/[\s]+/g, '-');
 }
@@ -19,7 +20,7 @@ function readText(filePath) {
     if (fs_1.default.existsSync(filePath)) {
         return fs_1.default.readFileSync(filePath, 'utf-8');
     }
-    console.log(`${filePath} not found!`);
+    log_1.log.error(`${filePath} not found!`);
     return '';
 }
 function readJson(filePath) {
@@ -39,7 +40,7 @@ function writeJson(filePath, obj) {
         return true;
     }
     catch (e) {
-        console.log(`Error writing file: ${filePath}`);
+        log_1.log.error(`Error writing file: ${filePath}`);
         return false;
     }
 }
@@ -63,12 +64,12 @@ function cleanUpCommentsFromBuild(filePath) {
 }
 function triggerReload(filePath, wss) {
     const [fileExtension] = filePath.match(/\.[^.\/\\]+$/i) || ['.js'];
-    console.log(`Found change(s) on ${fileExtension.replace('.', '').toUpperCase()}. Reloading...`);
     wss.clients.forEach((client) => {
         if (client.readyState === ws_1.default.OPEN) {
             client.send(`reload${fileExtension}`);
         }
     });
+    wss.clients.size && log_1.log.info(`Found change(s) on ${fileExtension.replace('.', '').toUpperCase()}. Reloading...`);
 }
 function esbuildConfig(input, out, wss) {
     return {

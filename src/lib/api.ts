@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { log } from './log';
 
 export function getApiClient(token: string) {
     const api = axios.create({
@@ -11,8 +12,8 @@ export function getApiClient(token: string) {
     });
     api.interceptors.response.use((res) => res, (err) => {
         const { response, config } = err;
-        if (!response) return console.log("API timed out. Please try again!");
-        console.log(`Error ${response.status}: ${response.data?.message || response.data?.error || err.message}`);
+        if (!response) return log.error("API timed out. Please try again!");
+        log.error(`Error ${response.status}: ${response.data?.message || response.data?.error || err.message}`);
 
         if (response?.data?.message && config.method === 'post' && config.url.match(/pages\/\d+\/events/gi)) {
             const foundIdMatch = response.data.message.match(/already\sin\suse.+\(id:\s(\d+)\).+/i);
