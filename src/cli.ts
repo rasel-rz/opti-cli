@@ -96,7 +96,7 @@ program
         const api = getApiClient(token);
         api.get(`/experiments/${experiment}`).then(res => {
             if (!res) return;
-            if (res.data.type != 'a/b') return log.error("Only A/B Tests are supported here for now!");
+            if (res.data.type != 'a/b' && res.data.type != 'multiarmed_bandit') return log.error(`Test type: ${res.data.type} is not supported!`);
             const experimentDir = sanitizeDirName(res.data.name);
             const experimentPath = path.join(projectPath, experimentDir);
             if (!fs.existsSync(experimentPath)) fs.mkdirSync(experimentPath);

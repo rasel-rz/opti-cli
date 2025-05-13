@@ -141,8 +141,8 @@ program
     api.get(`/experiments/${experiment}`).then(res => {
         if (!res)
             return;
-        if (res.data.type != 'a/b')
-            return log_1.log.error("Only A/B Tests are supported here for now!");
+        if (res.data.type != 'a/b' && res.data.type != 'multiarmed_bandit')
+            return log_1.log.error(`Test type: ${res.data.type} is not supported!`);
         const experimentDir = (0, util_1.sanitizeDirName)(res.data.name);
         const experimentPath = path_1.default.join(projectPath, experimentDir);
         if (!fs_1.default.existsSync(experimentPath))
