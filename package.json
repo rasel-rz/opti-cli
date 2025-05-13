@@ -1,6 +1,6 @@
 {
   "name": "opti-cli",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "CLI for Optimizely Web Experimentation",
   "engines": {
     "node": ">=22.0.0"
@@ -13,6 +13,7 @@
     "init": "ts-node src/cli.ts init",
     "metric": "ts-node src/cli.ts metric",
     "dev": "ts-node src/cli.ts dev",
+    "variations": "ts-node src/cli.ts variations",
     "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -30,6 +31,7 @@
   },
   "homepage": "https://github.com/rasel-rz/opti-cli#readme",
   "dependencies": {
+    "@inquirer/select": "^4.2.1",
     "axios": "^1.9.0",
     "chalk": "^5.4.1",
     "chokidar": "^4.0.3",

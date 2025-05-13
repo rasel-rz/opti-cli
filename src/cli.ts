@@ -2,7 +2,7 @@
 
 import { Command } from 'commander';
 import * as dotenv from 'dotenv';
-import { setContext, getContext } from './lib/context';
+import { setContext, getContext, IContext } from './lib/context';
 import { getApiClient } from './lib/api';
 import fs from 'fs';
 import path from 'path';
@@ -11,25 +11,14 @@ import express from 'express';
 import chokidar from 'chokidar';
 import http from 'http';
 import WebSocket from 'ws';
+import select, { Separator } from '@inquirer/select';
+import { SYS_FILE } from './lib/sysfile';
 import { context } from 'esbuild';
 import open from 'open';
 import { log } from './lib/log';
 
 dotenv.config();
 
-const SYS_FILE = {
-    projects: "projects.json",
-    root: "clients",
-    PAT: ".pat",
-    experiments: "experiments.json",
-    experiment: "experiment.json",
-    JS: "custom.js",
-    CSS: "custom.css",
-    TS: 'index.ts',
-    SCSS: 'index.scss',
-    variationPath: ".variation-dir",
-    metrics: "metrics.json",
-}
 interface Metric { selector: string, name: string };
 // interface OptMetric { aggregator: 'unique', event_id: number, scope: 'visitor', winning_direction: 'increasing' };
 interface OptEvent { name: string, id?: number, event_type: 'click', config: { selector: string }, page_id?: number };
@@ -116,6 +105,7 @@ program
                 const variationPath = path.join(experimentPath, variationDir);
                 if (!fs.existsSync(variationPath)) fs.mkdirSync(variationPath);
                 if (_variation.variation_id === variation) fs.writeFileSync(SYS_FILE.variationPath, variationPath);
+                experimentEntry.variations.push({ name: _variation.name, dirName: variationDir, id: _variation.variation_id });
                 if (variation && _variation.variation_id !== variation) return;
                 matchedVariationName.push(_variation.name);
                 let customJS = "", customCSS = "";
@@ -133,7 +123,6 @@ program
                     if (!fs.existsSync(path.join(variationPath, SYS_FILE.SCSS)))
                         fs.writeFileSync(path.join(variationPath, SYS_FILE.SCSS), customCSS);
                 }
-                experimentEntry.variations.push({ name: _variation.name, dirName: variationDir, id: _variation.variation_id });
             });
             localExperiments.push(experimentEntry);
             writeJson(path.join(projectPath, SYS_FILE.experiments), localExperiments);
@@ -330,6 +319,44 @@ program
                 log.success(`${metricsToPushOnXp.length} metric(s) added. Run npx optly push to push the changes.`);
             });
         });
+    });
+
+program
+    .command('variations')
+    .description("Change context to a different variation of the same experiemnt")
+    .action(async () => {
+        const { client, project, experiment } = getContext();
+        if (!client || !project || !experiment) return log.error("Missing context. Try npx optly use <experiment/variation link>");
+        const clientPath = path.join(SYS_FILE.root, client);
+        const projects = readJson(path.join(clientPath, SYS_FILE.projects)) || [];
+        const projectDir = projects.find((p: any) => p.id === project)?.dirName;
+        if (!projectDir) return log.error("Can't find project local directory. Try npx optly init <client-directory>");
+        const projectPath = path.join(clientPath, projectDir);
+        const experiments = readJson(path.join(projectPath, SYS_FILE.experiments)) || [];
+        const currentExperiment = experiments.find((xp: any) => xp.id === experiment);
+        if (!currentExperiment) return log.error("Can't find experiment records in local repo. Try npx optly pull");
+        const availableVariations = (currentExperiment.variations || []).map((v: any) => {
+            return { name: v.name, value: v };
+        });
+        if (!availableVariations.length) return log.error("Please create variations from optimizely platform.");
+        const OPTION__EXIT = {
+            name: 'Exit',
+            value: '__exit__',
+            description: 'Exit select menu'
+        };
+        const answer: any = await select({
+            message: 'Select a variation',
+            choices: [
+                ...availableVariations,
+                new Separator(),
+                OPTION__EXIT,
+            ],
+        });
+        if (answer === '__exit__') return;
+        const context: IContext = { client: client, project: project, experiment: experiment, variation: answer.id as number };
+        writeJson(SYS_FILE.context, context);
+        const variationPath = path.join(projectPath, currentExperiment.dirName, answer.dirName);
+        fs.writeFileSync(SYS_FILE.variationPath, variationPath);
     });
 
 program.parse();

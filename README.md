@@ -108,6 +108,13 @@ Now, run `npx optly dev`, navigate to the TAB you want to test the changes, enab
 
 The CLI by default supports typescript and scss. If you want the dev enviroment to disable them, check out *Environment Variables* section.
 
+## Switching to a different variation
+Run
+```
+npx optly variations
+```
+to get a list of variations on the existing experiment, select any of them to switch current context to selected variation.
+
 ## Metrics
 The REST API doesn't support test specific/variation only metrics. It only allows us to create and attach page based metrics. Once you pull an experiment, you should have an empty _metrics.json_ on your experiment folder. To create a metric, we need need a CSS Selector and a name. Update the `metrics.json` as follows:
 ```
