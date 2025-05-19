@@ -82,7 +82,7 @@ function esbuildConfig(input, out, wss) {
                 setup(build) {
                     build.onEnd(result => {
                         cleanUpCommentsFromBuild(out);
-                        triggerReload(out, wss);
+                        wss && triggerReload(out, wss);
                     });
                 },
             }],

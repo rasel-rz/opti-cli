@@ -53,7 +53,7 @@ export function triggerReload(filePath: string, wss: WebSocket.Server) {
     });
     wss.clients.size && log.info(`Found change(s) on ${fileExtension.replace('.', '').toUpperCase()}. Reloading...`);
 }
-export function esbuildConfig(input: string, out: string, wss: WebSocket.Server): BuildOptions {
+export function esbuildConfig(input: string, out: string, wss: WebSocket.Server | null): BuildOptions {
     return {
         entryPoints: [input],
         outfile: out,
@@ -64,7 +64,7 @@ export function esbuildConfig(input: string, out: string, wss: WebSocket.Server)
             setup(build: PluginBuild) {
                 build.onEnd(result => {
                     cleanUpCommentsFromBuild(out);
-                    triggerReload(out, wss);
+                    wss && triggerReload(out, wss);
                 });
             },
         }],

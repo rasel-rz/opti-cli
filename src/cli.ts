@@ -13,7 +13,7 @@ import http from 'http';
 import WebSocket from 'ws';
 import select, { Separator } from '@inquirer/select';
 import { SYS_FILE } from './lib/sysfile';
-import { context } from 'esbuild';
+import { context, build } from 'esbuild';
 import open from 'open';
 import { log } from './lib/log';
 
@@ -25,7 +25,7 @@ interface OptEvent { name: string, id?: number, event_type: 'click', config: { s
 
 const program = new Command();
 
-program.name('opti-cli').version('0.1.0');
+program.name('optly').version('0.1.0');
 
 program
     .command('use')
@@ -225,8 +225,9 @@ program
 
 program
     .command("dev")
+    .argument('[action]', "To bundle the code (TS/SCSS) without running dev server")
     .description("Run the recently pulled variation in a local server")
-    .action(async () => {
+    .action(async (action) => {
         const devRoot = readText(SYS_FILE.variationPath);
         if (!devRoot) return log.error("Try pulling a variation first by running npx optly pull");
 
@@ -238,6 +239,16 @@ program
         if (!fs.existsSync(jsPath) || !fs.existsSync(cssPath)) {
             return log.error("custom.js or custom.css not found in the variation directory");
         }
+
+        if (action === 'bundle') {
+            if (process.env.DISABLE_TS__SCSS_BUNDLE === 'true') return log.error("Bundling is disabled. Check **DISABLE_TS__SCSS_BUNDLE** at **.env** file.");
+            jsPath = path.join(devRoot, SYS_FILE.TS);
+            cssPath = path.join(devRoot, SYS_FILE.SCSS);
+            await build(esbuildConfig(jsPath, jsOutPath, null));
+            await build(esbuildConfig(cssPath, cssOutPath, null));
+            return log.success(`TS/SCSS bundled **@${devRoot}**`);
+        }
+
         const app = express();
         const server = http.createServer(app);
         const wss = new WebSocket.Server({ server });

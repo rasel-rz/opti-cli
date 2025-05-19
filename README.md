@@ -108,6 +108,8 @@ Now, run `npx optly dev`, navigate to the TAB you want to test the changes, enab
 
 The CLI by default supports typescript and scss. If you want the dev enviroment to disable them, check out *Environment Variables* section.
 
+Additionaly you can run `npx optly dev bundle` to bundle the TS/SCSS without running a dev server. This is helpful for small debugging or obvious typos!
+
 ## Switching to a different variation
 Run
 ```
