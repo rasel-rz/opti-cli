@@ -87,26 +87,33 @@ program
         api.get(`/experiments/${experiment}`).then(res => {
             if (!res) return;
             if (res.data.type != 'a/b' && res.data.type != 'multiarmed_bandit') return log.error(`Test type: ${res.data.type} is not supported!`);
-            const experimentDir = sanitizeDirName(res.data.name);
-            const experimentPath = path.join(projectPath, experimentDir);
-            if (!fs.existsSync(experimentPath)) fs.mkdirSync(experimentPath);
             const localExperiments: any[] = [];
             try {
                 localExperiments.push(...readJson(path.join(projectPath, SYS_FILE.experiments)));
             } catch (e) { }
-            const experimentEntryIndex = localExperiments.findIndex((xp: any) => xp.id === experiment);
-            if (experimentEntryIndex >= 0) { localExperiments.splice(experimentEntryIndex, 1); }
-            const experimentEntry: any = { name: res.data.name, dirName: experimentDir, id: experiment, variations: [] };
+            const xpDirName = sanitizeDirName(res.data.name);
+            let experimentEntry = localExperiments.find((xp: any) => xp.id === experiment) ||
+                { name: res.data.name, dirName: xpDirName, id: experiment, variations: [], toPush: true };;
+            // if (experimentEntryIndex >= 0) { localExperiments.splice(experimentEntryIndex, 1); }
+            const experimentPath = path.join(projectPath, experimentEntry.dirName);
+            if (experimentEntry.dirName !== xpDirName) log.warning(`Experiment name changed. Local directory is **@${experimentEntry.dirName}**`);
+            if (!fs.existsSync(experimentPath)) fs.mkdirSync(experimentPath);
 
             writeJson(path.join(experimentPath, SYS_FILE.experiment), res.data);
             let matchedVariationName: string[] = [];
             if (variation && !res.data.variations.find((_v: any) => variation === _v.variation_id)) return log.error(`Can't find a variation with ID ${variation}`);
             res.data.variations.forEach((_variation: any) => {
-                const variationDir = sanitizeDirName(_variation.name);
-                const variationPath = path.join(experimentPath, variationDir);
+                const vDirName = sanitizeDirName(_variation.name);
+                const variationEntry = experimentEntry.variations.find((x: any) => x.id === _variation.variation_id) ||
+                    { name: _variation.name, dirName: vDirName, id: _variation.variation_id, toPush: true }
+                if (vDirName !== variationEntry.dirName) log.warning(`Variation name changed. **${_variation.name}** is locally **@${variationEntry.dirName}**`)
+                const variationPath = path.join(experimentPath, variationEntry.dirName);
                 if (!fs.existsSync(variationPath)) fs.mkdirSync(variationPath);
                 if (_variation.variation_id === variation) fs.writeFileSync(SYS_FILE.variationPath, variationPath);
-                experimentEntry.variations.push({ name: _variation.name, dirName: variationDir, id: _variation.variation_id });
+                if (variationEntry.toPush) {
+                    delete variationEntry.toPush;
+                    experimentEntry.variations.push(variationEntry);
+                }
                 if (variation && _variation.variation_id !== variation) return;
                 matchedVariationName.push(_variation.name);
                 let customJS = "", customCSS = "";
@@ -125,7 +132,10 @@ program
                         fs.writeFileSync(path.join(variationPath, SYS_FILE.SCSS), customCSS);
                 }
             });
-            localExperiments.push(experimentEntry);
+            if (experimentEntry.toPush) {
+                delete experimentEntry.toPush;
+                localExperiments.push(experimentEntry);
+            }
             writeJson(path.join(projectPath, SYS_FILE.experiments), localExperiments);
             const metricPath = path.join(experimentPath, SYS_FILE.metrics);
             if (!fs.existsSync(metricPath)) writeJson(metricPath, []);

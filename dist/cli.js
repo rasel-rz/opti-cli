@@ -133,32 +133,40 @@ program
             return;
         if (res.data.type != 'a/b' && res.data.type != 'multiarmed_bandit')
             return log_1.log.error(`Test type: ${res.data.type} is not supported!`);
-        const experimentDir = (0, util_1.sanitizeDirName)(res.data.name);
-        const experimentPath = path_1.default.join(projectPath, experimentDir);
-        if (!fs_1.default.existsSync(experimentPath))
-            fs_1.default.mkdirSync(experimentPath);
         const localExperiments = [];
         try {
             localExperiments.push(...(0, util_1.readJson)(path_1.default.join(projectPath, sysfile_1.SYS_FILE.experiments)));
         }
         catch (e) { }
-        const experimentEntryIndex = localExperiments.findIndex((xp) => xp.id === experiment);
-        if (experimentEntryIndex >= 0) {
-            localExperiments.splice(experimentEntryIndex, 1);
-        }
-        const experimentEntry = { name: res.data.name, dirName: experimentDir, id: experiment, variations: [] };
+        const xpDirName = (0, util_1.sanitizeDirName)(res.data.name);
+        let experimentEntry = localExperiments.find((xp) => xp.id === experiment) ||
+            { name: res.data.name, dirName: xpDirName, id: experiment, variations: [], toPush: true };
+        ;
+        // if (experimentEntryIndex >= 0) { localExperiments.splice(experimentEntryIndex, 1); }
+        const experimentPath = path_1.default.join(projectPath, experimentEntry.dirName);
+        if (experimentEntry.dirName !== xpDirName)
+            log_1.log.warning(`Experiment name changed. Local directory is **@${experimentEntry.dirName}**`);
+        if (!fs_1.default.existsSync(experimentPath))
+            fs_1.default.mkdirSync(experimentPath);
         (0, util_1.writeJson)(path_1.default.join(experimentPath, sysfile_1.SYS_FILE.experiment), res.data);
         let matchedVariationName = [];
         if (variation && !res.data.variations.find((_v) => variation === _v.variation_id))
             return log_1.log.error(`Can't find a variation with ID ${variation}`);
         res.data.variations.forEach((_variation) => {
-            const variationDir = (0, util_1.sanitizeDirName)(_variation.name);
-            const variationPath = path_1.default.join(experimentPath, variationDir);
+            const vDirName = (0, util_1.sanitizeDirName)(_variation.name);
+            const variationEntry = experimentEntry.variations.find((x) => x.id === _variation.variation_id) ||
+                { name: _variation.name, dirName: vDirName, id: _variation.variation_id, toPush: true };
+            if (vDirName !== variationEntry.dirName)
+                log_1.log.warning(`Variation name changed. **${_variation.name}** is locally **@${variationEntry.dirName}**`);
+            const variationPath = path_1.default.join(experimentPath, variationEntry.dirName);
             if (!fs_1.default.existsSync(variationPath))
                 fs_1.default.mkdirSync(variationPath);
             if (_variation.variation_id === variation)
                 fs_1.default.writeFileSync(sysfile_1.SYS_FILE.variationPath, variationPath);
-            experimentEntry.variations.push({ name: _variation.name, dirName: variationDir, id: _variation.variation_id });
+            if (variationEntry.toPush) {
+                delete variationEntry.toPush;
+                experimentEntry.variations.push(variationEntry);
+            }
             if (variation && _variation.variation_id !== variation)
                 return;
             matchedVariationName.push(_variation.name);
@@ -180,7 +188,10 @@ program
                     fs_1.default.writeFileSync(path_1.default.join(variationPath, sysfile_1.SYS_FILE.SCSS), customCSS);
             }
         });
-        localExperiments.push(experimentEntry);
+        if (experimentEntry.toPush) {
+            delete experimentEntry.toPush;
+            localExperiments.push(experimentEntry);
+        }
         (0, util_1.writeJson)(path_1.default.join(projectPath, sysfile_1.SYS_FILE.experiments), localExperiments);
         const metricPath = path_1.default.join(experimentPath, sysfile_1.SYS_FILE.metrics);
         if (!fs_1.default.existsSync(metricPath))
