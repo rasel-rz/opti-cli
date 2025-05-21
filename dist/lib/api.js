@@ -13,7 +13,7 @@ function getApiClient(token) {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
         },
-        timeout: 10000,
+        timeout: 15000,
     });
     api.interceptors.response.use((res) => res, (err) => {
         var _a, _b, _c;

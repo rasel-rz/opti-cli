@@ -70,3 +70,7 @@ export function esbuildConfig(input: string, out: string, wss: WebSocket.Server 
         }],
     }
 }
+
+export function missingToken() {
+    return log.error(`Missing Personal Access Token. Create a **.pat** file in the client directory and put your token inside.`);
+}

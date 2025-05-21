@@ -84,7 +84,7 @@ program
     const clientPath = path_1.default.join(sysfile_1.SYS_FILE.root, client);
     const token = (0, util_1.readText)(path_1.default.join(clientPath, sysfile_1.SYS_FILE.PAT));
     if (!token)
-        return;
+        return (0, util_1.missingToken)();
     const api = (0, api_1.getApiClient)(token);
     api.get('/projects').then(res => {
         if (!res)
@@ -105,8 +105,9 @@ program
                 return;
             fs_1.default.mkdirSync(projectPath);
             (0, util_1.writeJson)(path_1.default.join(projectPath, sysfile_1.SYS_FILE.experiments), []);
-            log_1.log.error(`Missing project dir created @${projectPath.toString()}`);
+            log_1.log.warning(`Missing project dir created @${projectPath.toString()}`);
         });
+        log_1.log.success(`Successfully initialized client **@${client}**`);
     });
 });
 program
@@ -125,7 +126,7 @@ program
     const projectPath = path_1.default.join(clientPath, projectDir);
     const token = (0, util_1.readText)(path_1.default.join(clientPath, sysfile_1.SYS_FILE.PAT));
     if (!token)
-        return;
+        return (0, util_1.missingToken)();
     const api = (0, api_1.getApiClient)(token);
     api.get(`/experiments/${experiment}`).then(res => {
         if (!res)
@@ -204,7 +205,7 @@ program
     const projectPath = path_1.default.join(clientPath, projectDir);
     const token = (0, util_1.readText)(path_1.default.join(clientPath, sysfile_1.SYS_FILE.PAT));
     if (!token)
-        return;
+        return (0, util_1.missingToken)();
     const api = (0, api_1.getApiClient)(token);
     const experiments = (0, util_1.readJson)(path_1.default.join(projectPath, sysfile_1.SYS_FILE.experiments)) || [];
     const experimentJson = experiments.find((xp) => xp.id === experiment);
@@ -362,7 +363,7 @@ program
     const clientPath = path_1.default.join(sysfile_1.SYS_FILE.root, client);
     const token = (0, util_1.readText)(path_1.default.join(clientPath, sysfile_1.SYS_FILE.PAT));
     if (!token)
-        return;
+        return (0, util_1.missingToken)();
     const api = (0, api_1.getApiClient)(token);
     function getEvent(eventId) { return api.get(`/events/${eventId}`); }
     function makeEvent(pageId, event) {

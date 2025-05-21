@@ -9,6 +9,7 @@ exports.readJson = readJson;
 exports.writeJson = writeJson;
 exports.triggerReload = triggerReload;
 exports.esbuildConfig = esbuildConfig;
+exports.missingToken = missingToken;
 const fs_1 = __importDefault(require("fs"));
 const esbuild_sass_plugin_1 = require("esbuild-sass-plugin");
 const ws_1 = __importDefault(require("ws"));
@@ -87,4 +88,7 @@ function esbuildConfig(input, out, wss) {
                 },
             }],
     };
+}
+function missingToken() {
+    return log_1.log.error(`Missing Personal Access Token. Create a **.pat** file in the client directory and put your token inside.`);
 }

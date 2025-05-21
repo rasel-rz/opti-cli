@@ -100,7 +100,9 @@ Then add an script as following:
         if (data === 'reload.css') return injectCss();
         window.location.reload();
     };
-    injectCss(); injectJs();
+    injectCss();
+    function waitUntil(t,e=3e4,i=25){return new Promise((r,n)=>{if(e<=0)return n("waitFor | Timer expired");const o=t();return o?r(o):setTimeout(()=>{waitUntil(t,e-i,i).then(r).catch(n)},i)})}
+    waitUntil(() => window.optimizely && typeof window.optimizely.get === 'function').then(injectJs); 
 })();
 ```
 This script will match all URL. So activating it on-click only will prevent the browser unnecessary reloads.

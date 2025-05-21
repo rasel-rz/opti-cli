@@ -8,7 +8,7 @@ export function getApiClient(token: string) {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
         },
-        timeout: 10000,
+        timeout: 15000,
     });
     api.interceptors.response.use((res) => res, (err) => {
         const { response, config } = err;

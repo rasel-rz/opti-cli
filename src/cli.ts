@@ -6,7 +6,7 @@ import { setContext, getContext, IContext } from './lib/context';
 import { getApiClient } from './lib/api';
 import fs from 'fs';
 import path from 'path';
-import { sanitizeDirName, readJson, readText, writeJson, esbuildConfig, triggerReload } from './lib/util';
+import { sanitizeDirName, readJson, readText, writeJson, esbuildConfig, triggerReload, missingToken } from './lib/util';
 import express from 'express';
 import chokidar from 'chokidar';
 import http from 'http';
@@ -44,7 +44,7 @@ program
     .action((client: string) => {
         const clientPath = path.join(SYS_FILE.root, client);
         const token = readText(path.join(clientPath, SYS_FILE.PAT));
-        if (!token) return;
+        if (!token) return missingToken();
         const api = getApiClient(token);
         api.get('/projects').then(res => {
             if (!res) return;
@@ -63,8 +63,9 @@ program
                 if (fs.existsSync(projectPath)) return;
                 fs.mkdirSync(projectPath);
                 writeJson(path.join(projectPath, SYS_FILE.experiments), []);
-                log.error(`Missing project dir created @${projectPath.toString()}`);
+                log.warning(`Missing project dir created @${projectPath.toString()}`);
             });
+            log.success(`Successfully initialized client **@${client}**`);
         });
     });
 
@@ -81,7 +82,7 @@ program
         const projectPath = path.join(clientPath, projectDir);
 
         const token = readText(path.join(clientPath, SYS_FILE.PAT));
-        if (!token) return;
+        if (!token) return missingToken();
         const api = getApiClient(token);
         api.get(`/experiments/${experiment}`).then(res => {
             if (!res) return;
@@ -146,7 +147,7 @@ program
         const projectPath = path.join(clientPath, projectDir);
 
         const token = readText(path.join(clientPath, SYS_FILE.PAT));
-        if (!token) return;
+        if (!token) return missingToken();
         const api = getApiClient(token);
 
         const experiments = readJson(path.join(projectPath, SYS_FILE.experiments)) || [];
@@ -294,7 +295,7 @@ program
         if (!client) return log.error("Missing context. Try npx optly use <variation link>");
         const clientPath = path.join(SYS_FILE.root, client);
         const token = readText(path.join(clientPath, SYS_FILE.PAT));
-        if (!token) return;
+        if (!token) return missingToken();
         const api = getApiClient(token);
         function getEvent(eventId: string) { return api.get(`/events/${eventId}`) }
         function makeEvent(pageId: string, event: OptEvent) {
