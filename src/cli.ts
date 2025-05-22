@@ -6,7 +6,7 @@ import { setContext, getContext, IContext } from './lib/context';
 import { getApiClient } from './lib/api';
 import fs from 'fs';
 import path from 'path';
-import { sanitizeDirName, readJson, readText, writeJson, esbuildConfig, triggerReload, missingToken } from './lib/util';
+import { sanitizeDirName, readJson, readText, writeJson, esbuildConfig, triggerReload, missingToken, checkSafePublishing } from './lib/util';
 import express from 'express';
 import chokidar from 'chokidar';
 import http from 'http';
@@ -147,7 +147,7 @@ program
     .command('push')
     .argument('[action]', "If you want to publish your changes directly.")
     .description('Push the current variation code to Platform')
-    .action((action) => {
+    .action(async (action) => {
         const { client, project, experiment, variation } = getContext();
         if (!client || !project || !experiment || !variation) return log.error("Missing context. Try npx optly use <variation link>");
         const clientPath = path.join(SYS_FILE.root, client);
@@ -217,7 +217,12 @@ program
             }
         }
         let apiUrl = `/experiments/${experiment}`;
-        if (action === 'publish') apiUrl += `?action=publish`;
+        if (action === 'publish') {
+            const isSafeToPublish = await checkSafePublishing(api, experimentBody.audience_conditions);
+            if (isSafeToPublish) apiUrl += `?action=publish`;
+            console.log("isSafeToPublish", isSafeToPublish);
+        }
+        return;
         api.patch(apiUrl, experimentBody).then(res => {
             if (!res) return;
             writeJson(path.join(experimentPath, SYS_FILE.experiment), res.data);

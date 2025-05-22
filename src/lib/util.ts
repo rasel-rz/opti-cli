@@ -3,6 +3,7 @@ import { BuildOptions, PluginBuild } from 'esbuild';
 import { sassPlugin } from 'esbuild-sass-plugin';
 import WebSocket from 'ws';
 import { log } from './log';
+import { AxiosInstance } from 'axios';
 export function sanitizeDirName(name: string): string {
     return name.toLowerCase().replace(/[^A-Za-z0-9]/g, ' ').trim().replace(/[\s]+/g, '-');
 }
@@ -13,11 +14,14 @@ export function readText(filePath: string): string {
     log.error(`${filePath} not found!`);
     return '';
 }
+export function parseJson(text: string) {
+    try { return JSON.parse(text); }
+    catch (e) { return null; }
+}
 export function readJson(filePath: string) {
     const text = readText(filePath);
     if (!text) return null;
-    try { return JSON.parse(text); }
-    catch (e) { return null; }
+    return parseJson(text);
 }
 export function writeJson(filePath: string, obj: Object): boolean {
     try {
@@ -34,7 +38,7 @@ function cleanUpCommentsFromBuild(filePath: string) {
         let updatedContent = fileContent;
         if (filePath.endsWith('.js')) {
             // Remove single-line comments (// ...)
-            updatedContent = updatedContent.replace(/\/\/.*\.[tj]s\n/gm, '');
+            updatedContent = updatedContent.replace(/\/\/.*\.[tj]s(on)?\n/gm, '');
         } else if (filePath.endsWith('.css')) {
             // Remove multi-line comments (/* ... */)
             updatedContent = updatedContent.replace(/\/\*.*\.s?css\s?\*\/\n/gm, '');
@@ -73,4 +77,13 @@ export function esbuildConfig(input: string, out: string, wss: WebSocket.Server 
 
 export function missingToken() {
     return log.error(`Missing Personal Access Token. Create a **.pat** file in the client directory and put your token inside.`);
+}
+
+export function checkSafePublishing(api: AxiosInstance, audience: string): Promise<boolean> {
+    if (process.env.DISABLE_SAFE_PUBLISHING === 'true') return Promise.resolve(true);
+    const audienceArray = parseJson(audience) || [];
+    if (!audienceArray.length) return Promise.resolve(false);
+    if (audienceArray[0] !== 'and') return Promise.resolve(false);
+    const audiencesToCheck = audienceArray.slice()
+    return Promise.resolve(false)
 }
