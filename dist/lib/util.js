@@ -5,11 +5,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.sanitizeDirName = sanitizeDirName;
 exports.readText = readText;
+exports.parseJson = parseJson;
 exports.readJson = readJson;
 exports.writeJson = writeJson;
 exports.triggerReload = triggerReload;
 exports.esbuildConfig = esbuildConfig;
 exports.missingToken = missingToken;
+exports.checkSafePublishing = checkSafePublishing;
 const fs_1 = __importDefault(require("fs"));
 const esbuild_sass_plugin_1 = require("esbuild-sass-plugin");
 const ws_1 = __importDefault(require("ws"));
@@ -24,16 +26,19 @@ function readText(filePath) {
     log_1.log.error(`${filePath} not found!`);
     return '';
 }
-function readJson(filePath) {
-    const text = readText(filePath);
-    if (!text)
-        return null;
+function parseJson(text) {
     try {
         return JSON.parse(text);
     }
     catch (e) {
         return null;
     }
+}
+function readJson(filePath) {
+    const text = readText(filePath);
+    if (!text)
+        return null;
+    return parseJson(text);
 }
 function writeJson(filePath, obj) {
     try {
@@ -51,7 +56,7 @@ function cleanUpCommentsFromBuild(filePath) {
         let updatedContent = fileContent;
         if (filePath.endsWith('.js')) {
             // Remove single-line comments (// ...)
-            updatedContent = updatedContent.replace(/\/\/.*\.[tj]s\n/gm, '');
+            updatedContent = updatedContent.replace(/\/\/.*\.[tj]s(on)?\n/gm, '');
         }
         else if (filePath.endsWith('.css')) {
             // Remove multi-line comments (/* ... */)
@@ -91,4 +96,23 @@ function esbuildConfig(input, out, wss) {
 }
 function missingToken() {
     return log_1.log.error(`Missing Personal Access Token. Create a **.pat** file in the client directory and put your token inside.`);
+}
+function checkSafePublishing(api, audience) {
+    if (process.env.DISABLE_SAFE_PUBLISHING === 'true')
+        return Promise.resolve(true);
+    const audienceArray = parseJson(audience) || [];
+    if (!audienceArray.length)
+        return Promise.resolve(false);
+    if (audienceArray[0] !== 'and')
+        return Promise.resolve(false);
+    const audiencesToCheck = audienceArray.slice(1);
+    if (!audiencesToCheck.length)
+        return Promise.resolve(false);
+    return new Promise(resolve => {
+        Promise.all(audiencesToCheck.map(x => x.audience_id).map(audienceId => api.get(`/audiences/${audienceId}`)))
+            .then(res => {
+            const audiences = res.map(x => { var _a; return ((_a = x === null || x === void 0 ? void 0 : x.data) === null || _a === void 0 ? void 0 : _a.name) || ''; });
+            return resolve(!!audiences.find(x => x.match(/optimizely\sqa\scookie/gi)));
+        });
+    });
 }

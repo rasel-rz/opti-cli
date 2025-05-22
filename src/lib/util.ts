@@ -81,9 +81,17 @@ export function missingToken() {
 
 export function checkSafePublishing(api: AxiosInstance, audience: string): Promise<boolean> {
     if (process.env.DISABLE_SAFE_PUBLISHING === 'true') return Promise.resolve(true);
-    const audienceArray = parseJson(audience) || [];
+    const audienceArray: any[] = parseJson(audience) || [];
     if (!audienceArray.length) return Promise.resolve(false);
     if (audienceArray[0] !== 'and') return Promise.resolve(false);
-    const audiencesToCheck = audienceArray.slice()
-    return Promise.resolve(false)
+    const audiencesToCheck = audienceArray.slice(1);
+    if (!audiencesToCheck.length) return Promise.resolve(false);
+
+    return new Promise(resolve => {
+        Promise.all(audiencesToCheck.map(x => x.audience_id).map(audienceId => api.get(`/audiences/${audienceId}`)))
+            .then(res => {
+                const audiences = res.map(x => x?.data?.name || '');
+                return resolve(!!audiences.find(x => x.match(/optimizely\sqa\scookie/gi)));
+            });
+    });
 }

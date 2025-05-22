@@ -203,7 +203,7 @@ program
     .command('push')
     .argument('[action]', "If you want to publish your changes directly.")
     .description('Push the current variation code to Platform')
-    .action((action) => {
+    .action((action) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const { client, project, experiment, variation } = (0, context_1.getContext)();
     if (!client || !project || !experiment || !variation)
@@ -285,13 +285,18 @@ program
         }
     }
     let apiUrl = `/experiments/${experiment}`;
-    if (action === 'publish')
-        apiUrl += `?action=publish`;
+    if (action === 'publish') {
+        const isSafeToPublish = yield (0, util_1.checkSafePublishing)(api, experimentBody.audience_conditions);
+        if (isSafeToPublish)
+            apiUrl += `?action=publish`;
+        else
+            return log_1.log.error(`Please attach **Optimizely QA Cookie** as Audience and try again.`);
+    }
     api.patch(apiUrl, experimentBody).then(res => {
         if (!res)
             return;
         (0, util_1.writeJson)(path_1.default.join(experimentPath, sysfile_1.SYS_FILE.experiment), res.data);
-        log_1.log.success(`${experimentJson.name} -> ${variationBody.name} updated successfully!`);
+        log_1.log.success(`${experimentJson.name} -> ${variationBody.name} ${action === 'publish' ? '**published**' : 'updated'} successfully!`);
         if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
             try {
                 const updatedVariation = res.data.variations.find((v) => v.variation_id === variation);
@@ -305,7 +310,7 @@ program
             }
         }
     });
-});
+}));
 program
     .command("dev")
     .argument('[action]', "To bundle the code (TS/SCSS) without running dev server")

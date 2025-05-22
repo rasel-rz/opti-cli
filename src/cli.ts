@@ -220,13 +220,12 @@ program
         if (action === 'publish') {
             const isSafeToPublish = await checkSafePublishing(api, experimentBody.audience_conditions);
             if (isSafeToPublish) apiUrl += `?action=publish`;
-            console.log("isSafeToPublish", isSafeToPublish);
+            else return log.error(`Please attach **Optimizely QA Cookie** as Audience and try again.`);
         }
-        return;
         api.patch(apiUrl, experimentBody).then(res => {
             if (!res) return;
             writeJson(path.join(experimentPath, SYS_FILE.experiment), res.data);
-            log.success(`${experimentJson.name} -> ${variationBody.name} updated successfully!`);
+            log.success(`${experimentJson.name} -> ${variationBody.name} ${action === 'publish' ? '**published**' : 'updated'} successfully!`);
             if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
                 try {
                     const updatedVariation = res.data.variations.find((v: any) => v.variation_id === variation);

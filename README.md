@@ -151,5 +151,10 @@ Value can be `true` or `anything else`. If value is set to `true`, CLI will stop
 ### DISABLE_TS__SCSS_BUNDLE
 Value can be `true` or `anything else`. If value is set to `true`, CLI will **_stop_ creating/bundling/compiling** `index.ts` and `index.scss` file in variation directory.
 
+### DISABLE_SAFE_PUBLISHING
+The CLI by default has safe publishing enabled, which means to publish a change directly you'll need to have `Optimizely QA Cookie` attached as audience on the experiment. This is to prevent developers from accidentally publishing the experiment.
+
+You can disbale the safe guard by setting `DISABLE_SAFE_PUBLISHING=true` in environment variables.
+
 ## Thank you!
 Any kind of feedback is welcome.
