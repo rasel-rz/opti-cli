@@ -1,6 +1,6 @@
 {
   "name": "opti-cli",
-  "version": "3.0.8",
+  "version": "3.0.9",
   "description": "CLI for Optimizely Web Experimentation",
   "engines": {
     "node": ">=22.0.0"
@@ -18,7 +18,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "bin": {
-    "optly": "./dist/cli.js"
+    "optly": "dist/cli.js"
   },
   "repository": {
     "type": "git",
@@ -40,6 +40,7 @@
     "esbuild": "^0.25.4",
     "esbuild-sass-plugin": "^3.3.1",
     "express": "^5.1.0",
+    "mustache": "^4.2.0",
     "open": "^10.1.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
@@ -47,6 +48,8 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.1",
+    "@types/mustache": "^4.2.6",
     "@types/ws": "^8.18.1"
-  }
+  },
+  "keywords": []
 }

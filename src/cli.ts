@@ -6,7 +6,7 @@ import { setContext, getContext, IContext } from './lib/context';
 import { getApiClient } from './lib/api';
 import fs from 'fs';
 import path from 'path';
-import { sanitizeDirName, readJson, readText, writeJson, esbuildConfig, triggerReload, missingToken, checkSafePublishing } from './lib/util';
+import { sanitizeDirName, readJson, readText, writeJson, esbuildConfig, triggerReload, missingToken, checkSafePublishing, pullExtension, pushExtension } from './lib/util';
 import express from 'express';
 import chokidar from 'chokidar';
 import http from 'http';
@@ -73,24 +73,27 @@ program
     .command('pull')
     .description('Pull the current experiment to local machine')
     .action(() => {
-        const { client, project, experiment, variation } = getContext();
-        if (!client || !project || !experiment) return log.error("Missing context. Try npx optly use <experiment/variation link>");
+        const { client, project, experiment, variation, extension } = getContext();
+        if (!client || !project) return log.error("Missing context. Try npx optly use <experiment/variation link>");
         const clientPath = path.join(SYS_FILE.root, client);
         const projects = readJson(path.join(clientPath, SYS_FILE.projects)) || [];
         const projectDir = projects.find((p: any) => p.id === project)?.dirName;
         if (!projectDir) return log.error("Can't find project local directory. Try npx optly init <client-directory>");
         const projectPath = path.join(clientPath, projectDir);
 
+        const localExperiments: any[] = [];
+        try {
+            localExperiments.push(...readJson(path.join(projectPath, SYS_FILE.experiments)));
+        } catch (e) { }
+
         const token = readText(path.join(clientPath, SYS_FILE.PAT));
         if (!token) return missingToken();
         const api = getApiClient(token);
+        if (!experiment && extension) return pullExtension(api, projectPath, extension, localExperiments);
+        if (!experiment) return log.error("Missing context. Try npx optly use <experiment/variation link>");
         api.get(`/experiments/${experiment}`).then(res => {
             if (!res) return;
             if (res.data.type != 'a/b' && res.data.type != 'multiarmed_bandit') return log.error(`Test type: ${res.data.type} is not supported!`);
-            const localExperiments: any[] = [];
-            try {
-                localExperiments.push(...readJson(path.join(projectPath, SYS_FILE.experiments)));
-            } catch (e) { }
             const xpDirName = sanitizeDirName(res.data.name);
             let experimentEntry = localExperiments.find((xp: any) => xp.id === experiment) ||
                 { name: res.data.name, dirName: xpDirName, id: experiment, variations: [], toPush: true };;
@@ -148,8 +151,8 @@ program
     .argument('[action]', "If you want to publish your changes directly.")
     .description('Push the current variation code to Platform')
     .action(async (action) => {
-        const { client, project, experiment, variation } = getContext();
-        if (!client || !project || !experiment || !variation) return log.error("Missing context. Try npx optly use <variation link>");
+        const { client, project, experiment, variation, extension } = getContext();
+        if (!client || !project) return log.error("Missing context. Try npx optly use <variation link>");
         const clientPath = path.join(SYS_FILE.root, client);
         const projects = readJson(path.join(clientPath, SYS_FILE.projects)) || [];
         const projectDir = projects.find((p: any) => p.id === project)?.dirName;
@@ -160,7 +163,10 @@ program
         if (!token) return missingToken();
         const api = getApiClient(token);
 
+        if (!experiment && extension) return pushExtension(api, projectPath, extension);
+
         const experiments = readJson(path.join(projectPath, SYS_FILE.experiments)) || [];
+        if (!experiment || !variation) return log.error("Missing context. Try npx optly use <variation link>");
         const experimentJson = experiments.find((xp: any) => xp.id === experiment);
         if (!experimentJson) return log.error("Can't find experiment. Try running npx optly pull");
         const experimentDir = experimentJson.dirName;
@@ -246,6 +252,11 @@ program
         const devRoot = readText(SYS_FILE.variationPath);
         if (!devRoot) return log.error("Try pulling a variation first by running npx optly pull");
 
+        const { variation, extension } = getContext();
+        const isExtension = !variation && !!extension;
+        const buildDir = path.join(devRoot, SYS_FILE.buildDir);
+        if (isExtension && !fs.existsSync(buildDir)) fs.mkdirSync(buildDir);
+
         let jsPath = path.join(devRoot, SYS_FILE.JS);
         let jsOutPath = path.join(devRoot, SYS_FILE.JS);
         let cssPath = path.join(devRoot, SYS_FILE.CSS);
@@ -268,7 +279,8 @@ program
         const server = http.createServer(app);
         const wss = new WebSocket.Server({ server });
 
-        app.use(express.static(devRoot));
+        if (isExtension) app.use(express.static(buildDir));
+        else app.use(express.static(devRoot));
         const PORT = 3000;
 
         if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
@@ -277,14 +289,14 @@ program
             log.info("Please modify the **TS/SCSS** files, they will automatically get **bundled/compiled**.");
 
             try {
-                const jsCtx = await context(esbuildConfig(jsPath, jsOutPath, wss));
+                const jsCtx = await context(esbuildConfig(jsPath, jsOutPath, wss, isExtension, devRoot));
                 await jsCtx.watch();
             } catch (error: any) {
                 console.error(`Error bundling TypeScript: ${error.message}`);
             }
 
             try {
-                const cssCtx = await context(esbuildConfig(cssPath, cssOutPath, wss));
+                const cssCtx = await context(esbuildConfig(cssPath, cssOutPath, wss, isExtension, devRoot));
                 await cssCtx.watch();
             } catch (error: any) {
                 console.error(`Error compiling SCSS: ${error.message}`);

@@ -8,6 +8,7 @@ export interface IContext {
     project: number | null;
     experiment: number | null;
     variation: number | null;
+    extension?: number | null;
 }
 
 export function setContext(url: string): IContext {
@@ -16,6 +17,7 @@ export function setContext(url: string): IContext {
     if (url.match(/.*\/projects\/(\d+)/gi)) context.project = parseInt(url.replace(/.*\/projects\/(\d+).*/gi, "$1"));
     if (url.match(/.*\/experiments\/(\d+)/gi)) context.experiment = parseInt(url.replace(/.*\/experiments\/(\d+).*/gi, "$1"));
     if (url.match(/.*\/variations\/(\d+)/gi)) context.variation = parseInt(url.replace(/.*\/variations\/(\d+).*/gi, "$1"));
+    if (url.match(/.*\/extensions\/(\d+)/gi)) context.extension = parseInt(url.replace(/.*\/extensions\/(\d+).*/gi, "$1"));
     if (context.project) {
         const clientsPath = path.join(SYS_FILE.root);
         const clients = fs.readdirSync(clientsPath);

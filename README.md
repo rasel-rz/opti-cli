@@ -6,6 +6,10 @@ Create a node project. Run
 ```
 npm i opti-cli
 ```
+If you don't have NPM initalized on your directory, run
+```
+npm init -y 
+```
 
 ## Setup
 This package expects some specific folder structure given below.
@@ -34,6 +38,8 @@ You can do that by simply running
 npx optly use <variation-link>
 ```
 For example, running `npx optly use https://app.optimizely.com/v2/projects/30072250448/experiments/5560453733023744/variations/6356439216685056` will set the right context for this experiment and all it's variation to be pulled and only selected variation to be pushed.
+
+Variation link can be an **extension/template** link too.
 
 ## Pulling a experiment
 You can pull an experiment and all it's variation codes by running 

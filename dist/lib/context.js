@@ -18,6 +18,8 @@ function setContext(url) {
         context.experiment = parseInt(url.replace(/.*\/experiments\/(\d+).*/gi, "$1"));
     if (url.match(/.*\/variations\/(\d+)/gi))
         context.variation = parseInt(url.replace(/.*\/variations\/(\d+).*/gi, "$1"));
+    if (url.match(/.*\/extensions\/(\d+)/gi))
+        context.extension = parseInt(url.replace(/.*\/extensions\/(\d+).*/gi, "$1"));
     if (context.project) {
         const clientsPath = path_1.default.join(sysfile_1.SYS_FILE.root);
         const clients = fs_1.default.readdirSync(clientsPath);

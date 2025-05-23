@@ -115,8 +115,8 @@ program
     .description('Pull the current experiment to local machine')
     .action(() => {
     var _a;
-    const { client, project, experiment, variation } = (0, context_1.getContext)();
-    if (!client || !project || !experiment)
+    const { client, project, experiment, variation, extension } = (0, context_1.getContext)();
+    if (!client || !project)
         return log_1.log.error("Missing context. Try npx optly use <experiment/variation link>");
     const clientPath = path_1.default.join(sysfile_1.SYS_FILE.root, client);
     const projects = (0, util_1.readJson)(path_1.default.join(clientPath, sysfile_1.SYS_FILE.projects)) || [];
@@ -124,20 +124,24 @@ program
     if (!projectDir)
         return log_1.log.error("Can't find project local directory. Try npx optly init <client-directory>");
     const projectPath = path_1.default.join(clientPath, projectDir);
+    const localExperiments = [];
+    try {
+        localExperiments.push(...(0, util_1.readJson)(path_1.default.join(projectPath, sysfile_1.SYS_FILE.experiments)));
+    }
+    catch (e) { }
     const token = (0, util_1.readText)(path_1.default.join(clientPath, sysfile_1.SYS_FILE.PAT));
     if (!token)
         return (0, util_1.missingToken)();
     const api = (0, api_1.getApiClient)(token);
+    if (!experiment && extension)
+        return (0, util_1.pullExtension)(api, projectPath, extension, localExperiments);
+    if (!experiment)
+        return log_1.log.error("Missing context. Try npx optly use <experiment/variation link>");
     api.get(`/experiments/${experiment}`).then(res => {
         if (!res)
             return;
         if (res.data.type != 'a/b' && res.data.type != 'multiarmed_bandit')
             return log_1.log.error(`Test type: ${res.data.type} is not supported!`);
-        const localExperiments = [];
-        try {
-            localExperiments.push(...(0, util_1.readJson)(path_1.default.join(projectPath, sysfile_1.SYS_FILE.experiments)));
-        }
-        catch (e) { }
         const xpDirName = (0, util_1.sanitizeDirName)(res.data.name);
         let experimentEntry = localExperiments.find((xp) => xp.id === experiment) ||
             { name: res.data.name, dirName: xpDirName, id: experiment, variations: [], toPush: true };
@@ -205,8 +209,8 @@ program
     .description('Push the current variation code to Platform')
     .action((action) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    const { client, project, experiment, variation } = (0, context_1.getContext)();
-    if (!client || !project || !experiment || !variation)
+    const { client, project, experiment, variation, extension } = (0, context_1.getContext)();
+    if (!client || !project)
         return log_1.log.error("Missing context. Try npx optly use <variation link>");
     const clientPath = path_1.default.join(sysfile_1.SYS_FILE.root, client);
     const projects = (0, util_1.readJson)(path_1.default.join(clientPath, sysfile_1.SYS_FILE.projects)) || [];
@@ -218,7 +222,11 @@ program
     if (!token)
         return (0, util_1.missingToken)();
     const api = (0, api_1.getApiClient)(token);
+    if (!experiment && extension)
+        return (0, util_1.pushExtension)(api, projectPath, extension);
     const experiments = (0, util_1.readJson)(path_1.default.join(projectPath, sysfile_1.SYS_FILE.experiments)) || [];
+    if (!experiment || !variation)
+        return log_1.log.error("Missing context. Try npx optly use <variation link>");
     const experimentJson = experiments.find((xp) => xp.id === experiment);
     if (!experimentJson)
         return log_1.log.error("Can't find experiment. Try running npx optly pull");
@@ -319,6 +327,11 @@ program
     const devRoot = (0, util_1.readText)(sysfile_1.SYS_FILE.variationPath);
     if (!devRoot)
         return log_1.log.error("Try pulling a variation first by running npx optly pull");
+    const { variation, extension } = (0, context_1.getContext)();
+    const isExtension = !variation && !!extension;
+    const buildDir = path_1.default.join(devRoot, sysfile_1.SYS_FILE.buildDir);
+    if (isExtension && !fs_1.default.existsSync(buildDir))
+        fs_1.default.mkdirSync(buildDir);
     let jsPath = path_1.default.join(devRoot, sysfile_1.SYS_FILE.JS);
     let jsOutPath = path_1.default.join(devRoot, sysfile_1.SYS_FILE.JS);
     let cssPath = path_1.default.join(devRoot, sysfile_1.SYS_FILE.CSS);
@@ -338,21 +351,24 @@ program
     const app = (0, express_1.default)();
     const server = http_1.default.createServer(app);
     const wss = new ws_1.default.Server({ server });
-    app.use(express_1.default.static(devRoot));
+    if (isExtension)
+        app.use(express_1.default.static(buildDir));
+    else
+        app.use(express_1.default.static(devRoot));
     const PORT = 3000;
     if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
         jsPath = path_1.default.join(devRoot, sysfile_1.SYS_FILE.TS);
         cssPath = path_1.default.join(devRoot, sysfile_1.SYS_FILE.SCSS);
         log_1.log.info("Please modify the **TS/SCSS** files, they will automatically get **bundled/compiled**.");
         try {
-            const jsCtx = yield (0, esbuild_1.context)((0, util_1.esbuildConfig)(jsPath, jsOutPath, wss));
+            const jsCtx = yield (0, esbuild_1.context)((0, util_1.esbuildConfig)(jsPath, jsOutPath, wss, isExtension, devRoot));
             yield jsCtx.watch();
         }
         catch (error) {
             console.error(`Error bundling TypeScript: ${error.message}`);
         }
         try {
-            const cssCtx = yield (0, esbuild_1.context)((0, util_1.esbuildConfig)(cssPath, cssOutPath, wss));
+            const cssCtx = yield (0, esbuild_1.context)((0, util_1.esbuildConfig)(cssPath, cssOutPath, wss, isExtension, devRoot));
             yield cssCtx.watch();
         }
         catch (error) {

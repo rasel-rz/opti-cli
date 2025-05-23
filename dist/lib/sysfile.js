@@ -14,4 +14,12 @@ exports.SYS_FILE = {
     variationPath: ".variation-dir",
     metrics: "metrics.json",
     context: ".optlyrc.json",
+    fields: "fields.json",
+    html: "custom.html",
+    undoJS: "undo.js",
+    undoTS: "undo.ts",
+    resetJS: "reset.js",
+    resetTS: "reset.ts",
+    extension: "extension.json",
+    buildDir: '__build',
 };
