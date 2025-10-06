@@ -112,7 +112,6 @@ function pull() {
             const xpDirName = (0, util_1.sanitizeDirName)(res.data.name);
             let experimentEntry = localExperiments.find((xp) => xp.id === experiment) ||
                 { name: res.data.name, dirName: xpDirName, id: experiment, variations: [], toPush: true };
-            ;
             // if (experimentEntryIndex >= 0) { localExperiments.splice(experimentEntryIndex, 1); }
             const experimentPath = path_1.default.join(projectPath, experimentEntry.dirName);
             if (experimentEntry.dirName !== xpDirName)
@@ -128,16 +127,24 @@ function pull() {
                 return log_1.log.error(`Can't find a variation with ID ${variation}`);
             // res.data.variations.forEach((_variation: any) => {
             for (let vPageId of pages) {
-                const [pageName, pageUrl] = yield (0, util_1.getPageName)(api, vPageId || '');
+                let [pageName, pageUrl] = yield (0, util_1.getPageName)(api, vPageId || '');
+                if (pages.length === 1)
+                    pageName = '';
                 const pageKey = (0, util_1.sanitizeDirName)(pageName);
                 for (let _variation of res.data.variations) {
                     // const vPageId = _variation.actions[0]?.page_id;
                     const vDirName = [pageKey, (0, util_1.sanitizeDirName)(_variation.name)].filter(Boolean).join('--');
-                    const variationEntry = experimentEntry.variations.find((x) => x.id === _variation.variation_id && x.pageId === vPageId) ||
+                    const variationEntry = experimentEntry.variations.find((x) => x.id === _variation.variation_id && (pages.length === 1 || x.pageId === vPageId)) ||
                         {
-                            name: [(0, util_1.sanitizeDirName)(pageName), _variation.name].join('--'), dirName: vDirName,
+                            name: [pageKey, _variation.name].filter(Boolean).join('--'), dirName: vDirName,
                             id: _variation.variation_id, toPush: true, pageId: vPageId, pageKey, pageUrl
                         };
+                    if (!variationEntry.pageId)
+                        variationEntry.pageId = vPageId;
+                    if (!variationEntry.pageKey)
+                        variationEntry.pageKey = pageKey;
+                    if (!variationEntry.pageUrl)
+                        variationEntry.pageUrl = pageUrl;
                     if (vDirName !== variationEntry.dirName)
                         log_1.log.warning(`Variation name changed. **${_variation.name}** is locally **@${variationEntry.dirName}**`);
                     const variationPath = path_1.default.join(experimentPath, variationEntry.dirName);
@@ -367,7 +374,7 @@ program
         return log_1.log.error("Can't find experiment. Try running npx optly pull");
     const experimentDir = experimentJson.dirName;
     const experimentPath = path_1.default.join(projectPath, experimentDir);
-    const variationJson = experimentJson.variations.find((v) => v.id === variation);
+    const variationJson = experimentJson.variations.find((v) => v.id === variation && v.pageId === page);
     if (!variationJson)
         return log_1.log.error("Can't find variation. Try running npx optly pull");
     const variationDir = variationJson.dirName;
