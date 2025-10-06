@@ -108,7 +108,7 @@ export function checkSafePublishing(api: AxiosInstance, audience: string): Promi
         Promise.all(audiencesToCheck.map(x => x.audience_id).map(audienceId => api.get(`/audiences/${audienceId}`)))
             .then(res => {
                 const audiences = res.map(x => x?.data?.name || '');
-                return resolve(!!audiences.find(x => x.match(/optimizely\sqa\scookie/gi)));
+                return resolve(!!audiences.find(x => x.match(/optimizely\s(qa|test)\scookie/gi)));
             });
     });
 }

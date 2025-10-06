@@ -164,7 +164,7 @@ function checkSafePublishing(api, audience) {
         Promise.all(audiencesToCheck.map(x => x.audience_id).map(audienceId => api.get(`/audiences/${audienceId}`)))
             .then(res => {
             const audiences = res.map(x => { var _a; return ((_a = x === null || x === void 0 ? void 0 : x.data) === null || _a === void 0 ? void 0 : _a.name) || ''; });
-            return resolve(!!audiences.find(x => x.match(/optimizely\sqa\scookie/gi)));
+            return resolve(!!audiences.find(x => x.match(/optimizely\s(qa|test)\scookie/gi)));
         });
     });
 }

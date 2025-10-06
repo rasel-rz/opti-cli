@@ -94,6 +94,8 @@ program
         api.get(`/experiments/${experiment}`).then(res => {
             if (!res) return;
             if (res.data.type != 'a/b' && res.data.type != 'multiarmed_bandit') return log.error(`Test type: ${res.data.type} is not supported!`);
+            const isMultipageXp = res.data.page_ids && res.data.page_ids.length > 1;
+            if (isMultipageXp) return log.error(`Multi-page experiments are not supported yet!`);
             const xpDirName = sanitizeDirName(res.data.name);
             let experimentEntry = localExperiments.find((xp: any) => xp.id === experiment) ||
                 { name: res.data.name, dirName: xpDirName, id: experiment, variations: [], toPush: true };;
@@ -143,6 +145,9 @@ program
             const metricPath = path.join(experimentPath, SYS_FILE.metrics);
             if (!fs.existsSync(metricPath)) writeJson(metricPath, []);
             log.success(`${res.data.name} -> ${matchedVariationName.join(", ")} pulled!`);
+            try {
+                log.info(`Preview URL: ${res.data.variations.actions[0].share_link.split('?')[0]}`);
+            } catch (e) { }
         });
     });
 
