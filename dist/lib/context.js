@@ -11,7 +11,7 @@ const sysfile_1 = require("./sysfile");
 const util_1 = require("./util");
 function setContext(url) {
     url = url.split("?")[0]; // Remove query params
-    let context = { client: "", project: null, experiment: null, variation: null };
+    let context = { client: "", project: null, experiment: null, variation: null, page: null };
     if (url.match(/.*\/projects\/(\d+)/gi))
         context.project = parseInt(url.replace(/.*\/projects\/(\d+).*/gi, "$1"));
     if (url.match(/.*\/experiments\/(\d+)/gi))

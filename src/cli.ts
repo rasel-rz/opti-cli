@@ -6,7 +6,7 @@ import { setContext, getContext, IContext } from './lib/context';
 import { getApiClient } from './lib/api';
 import fs from 'fs';
 import path from 'path';
-import { sanitizeDirName, readJson, readText, writeJson, esbuildConfig, triggerReload, missingToken, checkSafePublishing, pullExtension, pushExtension } from './lib/util';
+import { sanitizeDirName, readJson, readText, writeJson, esbuildConfig, triggerReload, missingToken, checkSafePublishing, pullExtension, pushExtension, getPageName } from './lib/util';
 import express from 'express';
 import chokidar from 'chokidar';
 import http from 'http';
@@ -56,11 +56,9 @@ async function pull() {
     const api = getApiClient(token);
     if (!experiment && extension) return pullExtension(api, projectPath, extension, localExperiments);
     if (!experiment) return log.error("Missing context. Try npx optly use <experiment/variation link>");
-    await api.get(`/experiments/${experiment}`).then(res => {
+    await api.get(`/experiments/${experiment}`).then(async res => {
         if (!res) return;
         if (res.data.type != 'a/b' && res.data.type != 'multiarmed_bandit') return log.error(`Test type: ${res.data.type} is not supported!`);
-        const isMultipageXp = res.data.page_ids && res.data.page_ids.length > 1;
-        if (isMultipageXp) return log.error(`Multi-page experiments are not supported yet!`);
         const xpDirName = sanitizeDirName(res.data.name);
         let experimentEntry = localExperiments.find((xp: any) => xp.id === experiment) ||
             { name: res.data.name, dirName: xpDirName, id: experiment, variations: [], toPush: true };;
@@ -68,40 +66,55 @@ async function pull() {
         const experimentPath = path.join(projectPath, experimentEntry.dirName);
         if (experimentEntry.dirName !== xpDirName) log.warning(`Experiment name changed. Local directory is **@${experimentEntry.dirName}**`);
         if (!fs.existsSync(experimentPath)) fs.mkdirSync(experimentPath);
-
         writeJson(path.join(experimentPath, SYS_FILE.experiment), res.data);
+
+        const hasPagesImplemented = res.data.page_ids && res.data.page_ids.length >= 1;
+        // if (isMultipageXp) return log.error(`Multi-page experiments are not supported yet!`);
+
+        const pages = hasPagesImplemented ? res.data.page_ids : [res.data.url_targeting.page_id];
+
         let matchedVariationName: string[] = [];
         if (variation && !res.data.variations.find((_v: any) => variation === _v.variation_id)) return log.error(`Can't find a variation with ID ${variation}`);
-        res.data.variations.forEach((_variation: any) => {
-            const vDirName = sanitizeDirName(_variation.name);
-            const variationEntry = experimentEntry.variations.find((x: any) => x.id === _variation.variation_id) ||
-                { name: _variation.name, dirName: vDirName, id: _variation.variation_id, toPush: true }
-            if (vDirName !== variationEntry.dirName) log.warning(`Variation name changed. **${_variation.name}** is locally **@${variationEntry.dirName}**`)
-            const variationPath = path.join(experimentPath, variationEntry.dirName);
-            if (!fs.existsSync(variationPath)) fs.mkdirSync(variationPath);
-            if (_variation.variation_id === variation) fs.writeFileSync(SYS_FILE.variationPath, variationPath);
-            if (variationEntry.toPush) {
-                delete variationEntry.toPush;
-                experimentEntry.variations.push(variationEntry);
+        // res.data.variations.forEach((_variation: any) => {
+        for (let vPageId of pages) {
+            const [pageName, pageUrl] = await getPageName(api, vPageId || '');
+            const pageKey = sanitizeDirName(pageName);
+            for (let _variation of res.data.variations) {
+                // const vPageId = _variation.actions[0]?.page_id;
+                const vDirName = [pageKey, sanitizeDirName(_variation.name)].filter(Boolean).join('--');
+                const variationEntry = experimentEntry.variations.find((x: any) => x.id === _variation.variation_id && x.pageId === vPageId) ||
+                {
+                    name: [sanitizeDirName(pageName), _variation.name].join('--'), dirName: vDirName,
+                    id: _variation.variation_id, toPush: true, pageId: vPageId, pageKey, pageUrl
+                }
+                if (vDirName !== variationEntry.dirName) log.warning(`Variation name changed. **${_variation.name}** is locally **@${variationEntry.dirName}**`)
+                const variationPath = path.join(experimentPath, variationEntry.dirName);
+                if (!fs.existsSync(variationPath)) fs.mkdirSync(variationPath);
+                if (_variation.variation_id === variation) fs.writeFileSync(SYS_FILE.variationPath, variationPath);
+                if (variationEntry.toPush) {
+                    delete variationEntry.toPush;
+                    experimentEntry.variations.push(variationEntry);
+                }
+                if (variation && _variation.variation_id !== variation) return;
+                matchedVariationName.push(_variation.name);
+                let customJS = "", customCSS = "";
+                try {
+                    customJS = _variation.actions.find((a: any) => a.page_id === vPageId).changes.find((x: any) => x.type === 'custom_code').value;
+                } catch (e) { }
+                try {
+                    customCSS = _variation.actions.find((a: any) => a.page_id === vPageId).changes.find((x: any) => x.type === 'custom_css').value;
+                } catch (e) { }
+                fs.writeFileSync(path.join(variationPath, SYS_FILE.JS), customJS);
+                fs.writeFileSync(path.join(variationPath, SYS_FILE.CSS), customCSS);
+                if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
+                    if (!fs.existsSync(path.join(variationPath, SYS_FILE.TS)))
+                        fs.writeFileSync(path.join(variationPath, SYS_FILE.TS), customJS);
+                    if (!fs.existsSync(path.join(variationPath, SYS_FILE.SCSS)))
+                        fs.writeFileSync(path.join(variationPath, SYS_FILE.SCSS), customCSS);
+                }
             }
-            if (variation && _variation.variation_id !== variation) return;
-            matchedVariationName.push(_variation.name);
-            let customJS = "", customCSS = "";
-            try {
-                customJS = _variation.actions[0].changes.find((x: any) => x.type === 'custom_code').value;
-            } catch (e) { }
-            try {
-                customCSS = _variation.actions[0].changes.find((x: any) => x.type === 'custom_css').value;
-            } catch (e) { }
-            fs.writeFileSync(path.join(variationPath, SYS_FILE.JS), customJS);
-            fs.writeFileSync(path.join(variationPath, SYS_FILE.CSS), customCSS);
-            if (process.env.DISABLE_TS__SCSS_BUNDLE !== 'true') {
-                if (!fs.existsSync(path.join(variationPath, SYS_FILE.TS)))
-                    fs.writeFileSync(path.join(variationPath, SYS_FILE.TS), customJS);
-                if (!fs.existsSync(path.join(variationPath, SYS_FILE.SCSS)))
-                    fs.writeFileSync(path.join(variationPath, SYS_FILE.SCSS), customCSS);
-            }
-        });
+        }
+        // });
         if (experimentEntry.toPush) {
             delete experimentEntry.toPush;
             localExperiments.push(experimentEntry);
@@ -110,13 +123,6 @@ async function pull() {
         const metricPath = path.join(experimentPath, SYS_FILE.metrics);
         if (!fs.existsSync(metricPath)) writeJson(metricPath, []);
         log.success(`${res.data.name} -> ${matchedVariationName.join(", ")} pulled!`);
-        try {
-            const previewUrl = new URL(res.data.variations.find((v: any) => v.actions.find((a: any) => a.share_link)).actions.find((a: any) => a.share_link).share_link);
-            [...previewUrl.searchParams.keys()]
-                .filter(key => key.startsWith('optimizely'))
-                .forEach(key => previewUrl.searchParams.delete(key));
-            log.info(`Preview URL: ${previewUrl.toString()}`);
-        } catch (e) { }
     });
 }
 
@@ -214,10 +220,14 @@ async function variations() {
         ],
     });
     if (answer === '__exit__') return;
-    const context: IContext = { client: client, project: project, experiment: experiment, variation: answer.id as number };
+    const context: IContext = { client: client, project: project, experiment: experiment, variation: answer.id as number, page: answer.pageId as number };
     writeJson(SYS_FILE.context, context);
     const variationPath = path.join(projectPath, currentExperiment.dirName, answer.dirName);
     fs.writeFileSync(SYS_FILE.variationPath, variationPath);
+
+    try {
+        log.info(`Preview URL: ${answer.pageUrl}`);
+    } catch (e) { }
 }
 
 program
@@ -269,7 +279,7 @@ program
     .argument('[action]', "If you want to publish your changes directly.")
     .description('Push the current variation code to Platform')
     .action(async (action) => {
-        const { client, project, experiment, variation, extension } = getContext();
+        const { client, project, experiment, variation, extension, page } = getContext();
         if (!client || !project) return log.error("Missing context. Try npx optly use <variation link>");
         const clientPath = path.join(SYS_FILE.root, client);
         const projects = readJson(path.join(clientPath, SYS_FILE.projects)) || [];
@@ -298,29 +308,36 @@ program
 
         const experimentBody = readJson(path.join(experimentPath, SYS_FILE.experiment));
         const variationBody = experimentBody.variations.find((v: any) => v.variation_id === variation);
-        const targetPageId = experimentBody.page_ids && experimentBody.page_ids[0] || experimentBody.url_targeting.page_id;
+        // const targetPageId = experimentBody.page_ids && experimentBody.page_ids[0] || experimentBody.url_targeting.page_id;
         if (customJS) {
             try {
-                variationBody.actions[0].changes.find((change: any) => {
+                variationBody.actions.find((a: any) => a.page_id === page).changes.find((change: any) => {
                     return change.type === 'custom_code';
                 }).value = customJS;;
             } catch (e) {
                 const change = { "async": false, "dependencies": [], "type": "custom_code", "value": customJS };
                 if (variationBody.actions && variationBody.actions.length) {
-                    if (!variationBody.actions[0].changes) variationBody.actions[0].changes = [];
-                    variationBody.actions[0].changes.push(change);
+                    if (!variationBody.actions.find((a: any) => a.page_id === page)) {
+                        variationBody.actions.push({
+                            changes: [],
+                            page_id: page
+                        });
+                    }
+                    // if (!variationBody.actions[0].changes) variationBody.actions[0].changes = [];
+                    variationBody.actions.find((a: any) => a.page_id === page).changes.push(change);
                 } else {
                     if (!variationBody.actions) variationBody.actions = [];
                     variationBody.actions.push({
                         changes: [change],
-                        page_id: targetPageId
+                        // page_id: targetPageId
+                        page_id: page
                     });
                 }
             }
         }
         if (customCSS) {
             try {
-                variationBody.actions[0].changes.find((change: any) => {
+                variationBody.actions.find((a: any) => a.page_id === page).changes.find((change: any) => {
                     return change.type === 'custom_css';
                 }).value = customCSS;
             } catch (e) {
@@ -329,13 +346,20 @@ program
                     "type": "custom_css", "value": customCSS
                 };
                 if (variationBody.actions && variationBody.actions.length) {
-                    if (!variationBody.actions[0].changes) variationBody.actions[0].changes = [];
-                    variationBody.actions[0].changes.push(change);
+                    if (!variationBody.actions.find((a: any) => a.page_id === page)) {
+                        variationBody.actions.push({
+                            changes: [],
+                            page_id: page
+                        });
+                    }
+                    // if (!variationBody.actions[0].changes) variationBody.actions[0].changes = [];
+                    variationBody.actions.find((a: any) => a.page_id === page).changes.push(change);
                 } else {
                     if (!variationBody.actions) variationBody.actions = [];
                     variationBody.actions.push({
                         changes: [change],
-                        page_id: targetPageId
+                        // page_id: targetPageId
+                        page_id: page
                     });
                 }
             }
@@ -350,15 +374,15 @@ program
             if (!res) return;
             writeJson(path.join(experimentPath, SYS_FILE.experiment), res.data);
             log.success(`${experimentJson.name} -> ${variationBody.name} ${action === 'publish' ? '**published**' : 'updated'} successfully!`);
-            if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
-                try {
-                    const updatedVariation = res.data.variations.find((v: any) => v.variation_id === variation);
-                    log.info("Opening preview link in browser...");
-                    (new Promise(resolve => setTimeout(resolve, 3000))).then(() => {
-                        open(updatedVariation.actions[0].share_link);
-                    });
-                } catch (e) { log.error("Error opening preview link. Please try manually."); }
-            }
+            // if (process.env.DISABLE_PREVIEW_ON_PUSH !== 'true') {
+            //     try {
+            //         const updatedVariation = res.data.variations.find((v: any) => v.variation_id === variation);
+            //         log.info("Opening preview link in browser...");
+            //         (new Promise(resolve => setTimeout(resolve, 3000))).then(() => {
+            //             open(updatedVariation.actions[0].share_link);
+            //         });
+            //     } catch (e) { log.error("Error opening preview link. Please try manually."); }
+            // }
         });
     });
 
@@ -368,51 +392,53 @@ program
     .description("Run the recently pulled variation in a local server")
     .action(dev);
 
-program
-    .command("metric")
-    .description("Try and sync metrics from a list of selector and metric name")
-    .action(() => {
-        const { client } = getContext();
-        if (!client) return log.error("Missing context. Try npx optly use <variation link>");
-        const clientPath = path.join(SYS_FILE.root, client);
-        const token = readText(path.join(clientPath, SYS_FILE.PAT));
-        if (!token) return missingToken();
-        const api = getApiClient(token);
-        function getEvent(eventId: string) { return api.get(`/events/${eventId}`) }
-        function makeEvent(pageId: string, event: OptEvent) {
-            return api.post(`/pages/${pageId}/events`, event)
-        }
 
-        const devRoot = readText(SYS_FILE.variationPath);
-        if (!devRoot) return log.error("Try pulling a variation first");
-        const experimentPath = path.join(devRoot, '..');
-        const metrics: Metric[] = readJson(path.join(experimentPath, SYS_FILE.metrics)) || [];
-        if (!metrics.length) return log.error("No metrics found to be added!");
-        const xpJson = readJson(path.join(experimentPath, SYS_FILE.experiment));
-        const alreadyAddedMetrics = xpJson.metrics.map((x: any) => x.event_id).map(getEvent);
-        Promise.all([...alreadyAddedMetrics]).then((res: any) => {
-            const resMetrics: OptEvent[] = res.map((x: any) => x.data);
-            const metricsToAdd = metrics.filter(x => !resMetrics
-                .find((m) => m.config.selector === x.selector && m.name === x.name));
-            if (!metricsToAdd.length) return log.warning("All the metrics are added already");
-            const targetPageId = xpJson.page_ids && xpJson.page_ids[0] || xpJson.url_targeting.page_id;
-            Promise.allSettled([...metricsToAdd.map(e => makeEvent(targetPageId, {
-                name: e.name, config: { selector: e.selector }, event_type: 'click'
-            }))]).then(res => {
-                const resEvents: OptEvent[] = res.map((x: any) => {
-                    if (x.status === 'fulfilled') return x.value.data;
-                    return { id: (x.reason.toString().match(/(\d+)/) || [null, null])[1] }
-                });
-                const metricsToPushOnXp = resEvents.map((e) => {
-                    if (!e || !e.id) return null;
-                    return { event_id: Number(e.id), winning_direction: 'increasing', aggregator: 'unique', scope: 'visitor' }
-                }).filter(x => x);
-                xpJson.metrics.push(...metricsToPushOnXp);
-                writeJson(path.join(experimentPath, SYS_FILE.experiment), xpJson);
-                log.success(`${metricsToPushOnXp.length} metric(s) added. Run npx optly push to push the changes.`);
-            });
-        });
-    });
+// "metric": "ts-node src/cli.ts metric",
+// program
+//     .command("metric")
+//     .description("Try and sync metrics from a list of selector and metric name")
+//     .action(() => {
+//         const { client } = getContext();
+//         if (!client) return log.error("Missing context. Try npx optly use <variation link>");
+//         const clientPath = path.join(SYS_FILE.root, client);
+//         const token = readText(path.join(clientPath, SYS_FILE.PAT));
+//         if (!token) return missingToken();
+//         const api = getApiClient(token);
+//         function getEvent(eventId: string) { return api.get(`/events/${eventId}`) }
+//         function makeEvent(pageId: string, event: OptEvent) {
+//             return api.post(`/pages/${pageId}/events`, event)
+//         }
+
+//         const devRoot = readText(SYS_FILE.variationPath);
+//         if (!devRoot) return log.error("Try pulling a variation first");
+//         const experimentPath = path.join(devRoot, '..');
+//         const metrics: Metric[] = readJson(path.join(experimentPath, SYS_FILE.metrics)) || [];
+//         if (!metrics.length) return log.error("No metrics found to be added!");
+//         const xpJson = readJson(path.join(experimentPath, SYS_FILE.experiment));
+//         const alreadyAddedMetrics = xpJson.metrics.map((x: any) => x.event_id).map(getEvent);
+//         Promise.all([...alreadyAddedMetrics]).then((res: any) => {
+//             const resMetrics: OptEvent[] = res.map((x: any) => x.data);
+//             const metricsToAdd = metrics.filter(x => !resMetrics
+//                 .find((m) => m.config.selector === x.selector && m.name === x.name));
+//             if (!metricsToAdd.length) return log.warning("All the metrics are added already");
+//             const targetPageId = xpJson.page_ids && xpJson.page_ids[0] || xpJson.url_targeting.page_id;
+//             Promise.allSettled([...metricsToAdd.map(e => makeEvent(targetPageId, {
+//                 name: e.name, config: { selector: e.selector }, event_type: 'click'
+//             }))]).then(res => {
+//                 const resEvents: OptEvent[] = res.map((x: any) => {
+//                     if (x.status === 'fulfilled') return x.value.data;
+//                     return { id: (x.reason.toString().match(/(\d+)/) || [null, null])[1] }
+//                 });
+//                 const metricsToPushOnXp = resEvents.map((e) => {
+//                     if (!e || !e.id) return null;
+//                     return { event_id: Number(e.id), winning_direction: 'increasing', aggregator: 'unique', scope: 'visitor' }
+//                 }).filter(x => x);
+//                 xpJson.metrics.push(...metricsToPushOnXp);
+//                 writeJson(path.join(experimentPath, SYS_FILE.experiment), xpJson);
+//                 log.success(`${metricsToPushOnXp.length} metric(s) added. Run npx optly push to push the changes.`);
+//             });
+//         });
+//     });
 
 program
     .command('variations')

@@ -151,8 +151,8 @@ Once you are done making changes to `custom.js` and `custom.css`, you can push t
 Pushing a change will automatically open the preview link in your default browser.
 
 ## Environment Variables
-### DISABLE_PREVIEW_ON_PUSH
-Value can be `true` or `anything else`. If value is set to `true`, CLI will stop opening preview on push.
+<!-- ### DISABLE_PREVIEW_ON_PUSH
+Value can be `true` or `anything else`. If value is set to `true`, CLI will stop opening preview on push. -->
 
 ### DISABLE_TS__SCSS_BUNDLE
 Value can be `true` or `anything else`. If value is set to `true`, CLI will **_stop_ creating/bundling/compiling** `index.ts` and `index.scss` file in variation directory.

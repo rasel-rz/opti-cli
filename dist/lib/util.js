@@ -47,6 +47,7 @@ exports.missingToken = missingToken;
 exports.checkSafePublishing = checkSafePublishing;
 exports.pullExtension = pullExtension;
 exports.pushExtension = pushExtension;
+exports.getPageName = getPageName;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const esbuild_sass_plugin_1 = require("esbuild-sass-plugin");
@@ -226,5 +227,16 @@ function pushExtension(api, projectPath, extensionId) {
             return;
         writeJson(path_1.default.join(xtPath, sysfile_1.SYS_FILE.extension), res.data);
         log_1.log.success(`Extension: **${res.data.name}** pushed.`);
+    });
+}
+function getPageName(api, pageId) {
+    if (!pageId)
+        return Promise.resolve(['', '']);
+    return new Promise(resolve => {
+        api.get(`pages/${pageId}`).then(res => {
+            if (!res)
+                return ['', ''];
+            return resolve([res.data.name, res.data.edit_url]);
+        });
     });
 }

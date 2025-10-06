@@ -13,7 +13,10 @@ exports.log = {
     success: (msg) => console.log(chalk_1.default.green.bold('✅ [SUCCESS]') + ' ' + formatMessage(msg)),
     warning: (msg) => console.log(chalk_1.default.yellow.bold('🚧 [WARNING]') + ' ' + formatMessage(msg)),
     info: (msg) => console.log(chalk_1.default.blue.bold('💡 [INFO]') + ' ' + formatMessage(msg)),
-    error: (msg) => console.log(chalk_1.default.red.bold('❌ [ERROR]') + ' ' + formatMessage(msg)),
+    error: (msg) => {
+        console.log(chalk_1.default.red.bold('❌ [ERROR]') + ' ' + formatMessage(msg));
+        process.exit(1);
+    },
 };
 // Example logs
 // log.success("Operation completed successfully!");

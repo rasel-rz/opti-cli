@@ -7,7 +7,10 @@ export const log = {
     success: (msg: string) => console.log(chalk.green.bold('✅ [SUCCESS]') + ' ' + formatMessage(msg)),
     warning: (msg: string) => console.log(chalk.yellow.bold('🚧 [WARNING]') + ' ' + formatMessage(msg)),
     info: (msg: string) => console.log(chalk.blue.bold('💡 [INFO]') + ' ' + formatMessage(msg)),
-    error: (msg: string) => console.log(chalk.red.bold('❌ [ERROR]') + ' ' + formatMessage(msg)),
+    error: (msg: string) => {
+        console.log(chalk.red.bold('❌ [ERROR]') + ' ' + formatMessage(msg));
+        process.exit(1);
+    },
 };
 
 // Example logs

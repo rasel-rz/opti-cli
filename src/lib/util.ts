@@ -174,3 +174,13 @@ export function pushExtension(api: AxiosInstance, projectPath: string, extension
         log.success(`Extension: **${res.data.name}** pushed.`);
     });
 }
+
+export function getPageName(api: AxiosInstance, pageId: string): Promise<[string, string]> {
+    if (!pageId) return Promise.resolve(['', '']);
+    return new Promise(resolve => {
+        api.get(`pages/${pageId}`).then(res => {
+            if (!res) return ['', ''];
+            return resolve([res.data.name, res.data.edit_url]);
+        });
+    });
+}

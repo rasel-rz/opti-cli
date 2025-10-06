@@ -8,12 +8,13 @@ export interface IContext {
     project: number | null;
     experiment: number | null;
     variation: number | null;
+    page: number | null,
     extension?: number | null;
 }
 
 export function setContext(url: string): IContext {
     url = url.split("?")[0]; // Remove query params
-    let context: IContext = { client: "", project: null, experiment: null, variation: null };
+    let context: IContext = { client: "", project: null, experiment: null, variation: null, page: null };
     if (url.match(/.*\/projects\/(\d+)/gi)) context.project = parseInt(url.replace(/.*\/projects\/(\d+).*/gi, "$1"));
     if (url.match(/.*\/experiments\/(\d+)/gi)) context.experiment = parseInt(url.replace(/.*\/experiments\/(\d+).*/gi, "$1"));
     if (url.match(/.*\/variations\/(\d+)/gi)) context.variation = parseInt(url.replace(/.*\/variations\/(\d+).*/gi, "$1"));
