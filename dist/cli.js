@@ -75,6 +75,8 @@ function use(link_1) {
         yield pull();
         if (!context.variation)
             yield variations();
+        if (!devMode)
+            return;
         yield dev(devMode);
     });
 }

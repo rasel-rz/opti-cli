@@ -33,6 +33,7 @@ async function use(link: string, devMode: string = '') {
     log.success(`Context set to: ${JSON.stringify(context)}`);
     await pull();
     if (!context.variation) await variations();
+    if (!devMode) return;
     await dev(devMode);
 }
 
